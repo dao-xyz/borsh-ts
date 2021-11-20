@@ -16,8 +16,8 @@ describe("struct", () => {
     const expectedResult: StructKind = {
       kind: "struct",
       fields: [
-        ["a", "typeA"],
-        ["b", "typeB"],
+        ["a", "u8"],
+        ["b", "u16"],
       ],
     };
     expect(generatedSchemas).toEqual(expectedResult);
@@ -41,7 +41,7 @@ describe("struct", () => {
     });
     expect(generatedSchemas.get(InnerStruct)).toEqual({
       kind: "struct",
-      fields: [["b", "typeB"]],
+      fields: [["b", "u8"]],
     });
   });
 });
