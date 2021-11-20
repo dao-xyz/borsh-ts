@@ -18,11 +18,11 @@ With this imlementation on can generate serialization/deserialization Schemas us
 **Enum, variant at instruction "slot" 1.** 
 
 ```typescript
-import { generateSchemas, Field, Variant } from "../schema";
+import { generateSchemas, field, variant } from "../schema";
 
-@Variant(1)
+@variant(1)
 class TestEnum {
-    @Field({ type: 'u8' })
+    @field({ type: 'u8' })
     public a: number;
 
     constructor(a: number) {
@@ -32,7 +32,7 @@ class TestEnum {
 }
 
 class TestStruct {
-    @Field({ type: TestEnum })
+    @field({ type: TestEnum })
     public enum: TestEnum;
 
     constructor(value: TestEnum) {
@@ -51,16 +51,16 @@ expect(buf).toEqual(Buffer.from([1, 4]));
 
 
 ```typescript
-import { generateSchemas, Field } from "../schema";
+import { generateSchemas, field } from "../schema";
 
 class InnerStruct {
-    @Field({ type: 'typeB' })
+    @field({ type: 'typeB' })
     public b: number;
 
 }
 
 class TestStruct {
-    @Field({ type: InnerStruct })
+    @field({ type: InnerStruct })
     public a: InnerStruct;
 
 }
@@ -84,10 +84,10 @@ expect(generatedSchemas.get(InnerStruct)).toEqual({
 **Option**
 
 ```typescript
-import { generateSchemas, Field } from "../schema";
+import { generateSchemas, field } from "../schema";
 
 class TestStruct {
-  @Field({ type: 'u8', option: true })
+  @field({ type: 'u8', option: true })
   public a: number;
 
 }
@@ -108,14 +108,14 @@ expect(schema).toEqual({
 **Explicit serialization order of fields**
 
 ```typescript
-import { generateSchemas, Field } from "../schema";
+import { generateSchemas, field } from "../schema";
 
 class TestStruct {
-    @Field({ type: 'u8', index: 1 })
+    @field({ type: 'u8', index: 1 })
     public a: number;
 
 
-    @Field({ type: 'u8', index: 0 })
+    @field({ type: 'u8', index: 0 })
     public b: number;
 }
 const schema = generateSchemas([TestStruct]).get(TestStruct)
