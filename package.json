@@ -1,6 +1,8 @@
 {
-  "name": "borsh",
-  "version": "0.6.0",
+  "name": "@quantleaf/borsh",
+  "version": "0.0.1",
+  "readme": "README.md",
+  "homepage": "https://github.com/quantleaf/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,7 +39,6 @@
   "bugs": {
     "url": "https://github.com/near/borsh-js/issues"
   },
-  "homepage": "https://github.com/near/borsh-js#readme",
   "devDependencies": {
     "@types/babel__core": "^7.1.2",
     "@types/babel__template": "^7.0.2",
