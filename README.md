@@ -10,17 +10,146 @@
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
 
-## Examples
-### Serializing an object
-```javascript
-const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const schema = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u64'], ['z', 'string'], ['q', [3]]] }]]);
-const buffer = borsh.serialize(schema, value);
+With this imlementation on can generate serialization/deserialization Schemas using decorators. 
+
+
+## Examples of schema generation using decorators
+
+**Enum, variant at instruction "slot" 1.** 
+
+```typescript
+import { generateSchemas, Field, Variant } from "../schema";
+
+@Variant(1)
+class TestEnum {
+    @Field({ type: 'u8' })
+    public a: number;
+
+    constructor(a: number) {
+        this.a = a
+
+    }
+}
+
+class TestStruct {
+    @Field({ type: TestEnum })
+    public enum: TestEnum;
+
+    constructor(value: TestEnum) {
+        this.enum = value
+    }
+}
+const instance = new TestStruct(new TestEnum(4));
+const generatedSchemas = generatesSchema([TestStruct])
+const buf = serialize(generatedSchemas, instance);
+expect(buf).toEqual(Buffer.from([1, 4]));
+
 ```
 
-### Deserializing an object
-```javascript
-const newValue = borsh.deserialize(schema, Test, buffer);
+
+**Nested Schema generation for structs**
+
+
+```typescript
+import { generateSchemas, Field } from "../schema";
+
+class InnerStruct {
+    @Field({ type: 'typeB' })
+    public b: number;
+
+}
+
+class TestStruct {
+    @Field({ type: InnerStruct })
+    public a: InnerStruct;
+
+}
+
+const generatedSchemas = generateSchemas([TestStruct])
+expect(generatedSchemas.get(TestStruct)).toEqual({
+    kind: 'struct',
+    fields: [
+        ['a', InnerStruct],
+    ]
+});
+expect(generatedSchemas.get(InnerStruct)).toEqual({
+    kind: 'struct',
+    fields: [
+        ['b', 'typeB'],
+    ]
+});
+```
+
+
+**Option**
+
+```typescript
+import { generateSchemas, Field } from "../schema";
+
+class TestStruct {
+  @Field({ type: 'u8', option: true })
+  public a: number;
+
+}
+const schema = generateSchemas([TestStruct]).get(TestStruct)
+expect(schema).toEqual({
+  fields: [
+      [
+          "a",
+          {
+              kind: 'option',
+              type: 'u8'
+          },
+      ]
+  ],
+  kind: "struct",
+});
+```
+**Explicit serialization order of fields**
+
+```typescript
+import { generateSchemas, Field } from "../schema";
+
+class TestStruct {
+    @Field({ type: 'u8', index: 1 })
+    public a: number;
+
+
+    @Field({ type: 'u8', index: 0 })
+    public b: number;
+}
+const schema = generateSchemas([TestStruct]).get(TestStruct)
+expect(schema).toEqual({
+    fields: [
+        [
+            "b",
+            "u8",
+        ],
+        [
+            "a",
+            "u8",
+        ],
+    ],
+    kind: "struct",
+});
+```
+
+## Examples of manual schema generation
+```typescript
+const schemas = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u64'], ['z', 'string'], ['q', [3]]] }]]);
+```
+
+
+## Serializing an object
+```typescript
+const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
+const buffer = borsh.serialize(SCHEMAS, value);
+```
+
+## Deserializing an object
+```typescript
+const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
+const newValue = borsh.deserialize(SCHEMAS, Test, buffer);
 ```
 
 ## Type Mappings
