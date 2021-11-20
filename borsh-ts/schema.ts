@@ -11,6 +11,9 @@ const STRUCT_META_DATA_SYMBOL = '__borsh_struct_metadata__';
 const structMetaDataKey = (constructorName: string) => {
     return STRUCT_META_DATA_SYMBOL + constructorName;
 }
+type Constructor<T> = new(...args: any[]) => T;
+
+export type FieldType = 'u8' | 'u16' | 'u32' | 'u64' | 'u128' | 'u256' | 'u512' | 'f32' | 'f64' | 'String' | Constructor<any>
 
 export interface StructKind {
     kind: 'struct',
@@ -24,7 +27,7 @@ export interface OptionKind {
 }
 
 interface StructKindDependent extends StructKind {
-    dependencies: Set<StructKindDependent>
+    dependencies: Set<Constructor<any>>
 }
 
 
@@ -58,7 +61,7 @@ export const variant = (index: number) => {
  * @param properties, the properties of the field mapping to schema
  * @returns 
  */
-export function field(properties: { type: any, option?: boolean, index?: number }) {
+export function field(properties: { type: FieldType, option?: boolean, index?: number }) {
     return (target: {} | any, name?: PropertyKey): any => {
         const metaDataKey = structMetaDataKey(target.constructor.name);
         let schema: StructKindDependent = Reflect.getMetadata(metaDataKey, target.constructor); // Assume StructKind already exist

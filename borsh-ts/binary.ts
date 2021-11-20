@@ -4,11 +4,11 @@ import BN from "bn.js";
 import { BorshError } from "./error";
 // TODO: Make sure this polyfill not included when not required
 import * as encoding from "text-encoding-utf-8";
-const TextDecoder =
-    typeof (global as any).TextDecoder !== "function"
-        ? encoding.TextDecoder
-        : (global as any).TextDecoder;
-const textDecoder = new TextDecoder("utf-8", { fatal: true });
+const ResolvedTextDecoder =
+  typeof TextDecoder !== "function"
+    ? encoding.TextDecoder
+    : TextDecoder;
+const textDecoder = new ResolvedTextDecoder("utf-8", { fatal: true });
 
 /// Binary encoder.
 export class BinaryWriter {

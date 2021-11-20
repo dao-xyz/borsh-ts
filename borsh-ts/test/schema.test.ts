@@ -6,10 +6,10 @@ describe('struct', () => {
     test('any field by string', () => {
 
         class TestStruct {
-            @field({ type: 'typeA' })
+            @field({ type: 'u8' })
             public a: number;
 
-            @field({ type: 'typeB' })
+            @field({ type: 'u16' })
             public b: number;
 
         }
@@ -30,7 +30,7 @@ describe('struct', () => {
     test('struct fields', () => {
 
         class InnerStruct {
-            @field({ type: 'typeB' })
+            @field({ type: 'u8' })
             public b: number;
 
         }
