@@ -64,17 +64,10 @@ Run linter
 ```bash
 yarn lint
 ```
-## Publish
-
-Prepare `dist` version by running:
-```bash
-yarn build
-```
-
-When publishing to npm use [np](https://github.com/sindresorhus/np).
 
 # License
 This repository is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 See [LICENSE-MIT](LICENSE-MIT.txt) and [LICENSE-APACHE](LICENSE-APACHE) for details.
 
+For official releases see:
 [Borsh]:          https://borsh.io
