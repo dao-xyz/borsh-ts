@@ -205,7 +205,7 @@ const buffer = borsh.serialize(SCHEMAS, value);
 ## Deserializing an object
 ```typescript
 const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const newValue = borsh.deserialize(SCHEMAS, Test, buffer);
+const newValue = borsh.deserialize(SCHEMAS, SomeClass, buffer);
 ```
 
 ## Type Mappings
