@@ -1,13 +1,7 @@
 const borsh = require('../../lib/index');
 const BN = require('bn.js');
 
-class Assignable {
-    constructor(properties) {
-        Object.keys(properties).map((key) => {
-            this[key] = properties[key];
-        });
-    }
-}
+
 
 class Test extends Assignable { }
 

@@ -1,5 +1,6 @@
+import { BinaryReader } from "../binary";
 import { BorshError } from "../error";
-import { serialize } from "../index";
+import { deserialize, serialize } from "../index";
 import { generateSchemas, StructKind, field, variant } from "../schema";
 
 describe("struct", () => {
@@ -63,29 +64,56 @@ describe("enum", () => {
     expect(buf).toEqual(Buffer.from([1, 3]));
   });
 
-  test("enum field", () => {
-    @variant(1)
-    class TestEnum {
+  test("enum field serialization/deserialization", () => {
+    class Super {}
+
+    @variant(0)
+    class Enum0 extends Super {
       @field({ type: "u8" })
       public a: number;
 
       constructor(a: number) {
+        super();
         this.a = a;
       }
     }
 
-    class TestStruct {
-      @field({ type: TestEnum })
-      public enum: TestEnum;
+    @variant(1)
+    class Enum1 extends Super {
+      @field({ type: "u8" })
+      public b: number;
 
-      constructor(value: TestEnum) {
+      constructor(b: number) {
+        super();
+        this.b = b;
+      }
+    }
+
+    class TestStruct {
+      @field({ type: Super })
+      public enum: Super;
+
+      constructor(value: Super) {
         this.enum = value;
       }
     }
-    const instance = new TestStruct(new TestEnum(4));
-    const generatedSchemas = generateSchemas([TestStruct]);
-    const buf = serialize(generatedSchemas, instance);
-    expect(buf).toEqual(Buffer.from([1, 4]));
+    const instance = new TestStruct(new Enum1(4));
+    const schemas = generateSchemas([Enum0, Enum1, TestStruct]);
+
+    expect(schemas.get(Enum0)).toBeDefined();
+    expect(schemas.get(Enum1)).toBeDefined();
+    expect(schemas.get(TestStruct)).toBeDefined();
+    const serialized = serialize(schemas, instance);
+    expect(serialized).toEqual(Buffer.from([1, 4]));
+
+    const deserialied = deserialize(
+      schemas,
+      TestStruct,
+      Buffer.from(serialized),
+      BinaryReader
+    );
+    expect(deserialied.enum).toBeInstanceOf(Enum1);
+    expect((deserialied.enum as Enum1).b).toEqual(4);
   });
 });
 
@@ -110,8 +138,51 @@ describe("option", () => {
     });
   });
 });
+
+describe("override", () => {
+  test("serialize/deserialize", () => {
+    /**
+     * Serialize field with custom serializer and deserializer
+     */
+    interface ComplexObject {
+      a: number;
+      b: number;
+    }
+    class TestStruct {
+      @field({
+        serialize: (value: ComplexObject, writer) => {
+          writer.writeU16(value.a + value.b);
+        },
+        deserialize: (reader): ComplexObject => {
+          let value = reader.readU16();
+          return {
+            a: value,
+            b: value * 2,
+          };
+        },
+      })
+      public obj: ComplexObject;
+      constructor(obj: ComplexObject) {
+        this.obj = obj;
+      }
+    }
+
+    const schemas = generateSchemas([TestStruct]);
+    const serialized = serialize(schemas, new TestStruct({ a: 2, b: 3 }));
+    const deserialied = deserialize(
+      schemas,
+      TestStruct,
+      Buffer.from(serialized),
+      BinaryReader
+    );
+    expect(deserialied.obj).toBeDefined();
+    expect(deserialied.obj.a).toEqual(5);
+    expect(deserialied.obj.b).toEqual(10);
+  });
+});
+
 describe("order", () => {
-  test("explicit", () => {
+  test("explicit serialization/deserialization", () => {
     class TestStruct {
       @field({ type: "u8", index: 1 })
       public a: number;
@@ -124,7 +195,8 @@ describe("order", () => {
         this.b = b;
       }
     }
-    const schema: StructKind = generateSchemas([TestStruct]).get(TestStruct);
+    const schemas = generateSchemas([TestStruct]);
+    const schema: StructKind = schemas.get(TestStruct);
     expect(schema).toEqual({
       fields: [
         ["b", "u8"],
@@ -132,6 +204,16 @@ describe("order", () => {
       ],
       kind: "struct",
     });
+    const serialized = serialize(schemas, new TestStruct(2, 3));
+    const deserialied = deserialize(
+      schemas,
+      TestStruct,
+      Buffer.from(serialized),
+      BinaryReader
+    );
+    expect(deserialied).toBeDefined();
+    expect(deserialied.a).toEqual(2);
+    expect(deserialied.b).toEqual(3);
   });
 
   test("explicit non zero offset", () => {

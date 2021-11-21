@@ -1,9 +1,10 @@
 
 const INITIAL_LENGTH = 1024;
+
 import BN from "bn.js";
 import { BorshError } from "./error";
-// TODO: Make sure this polyfill not included when not required
 import * as encoding from "text-encoding-utf-8";
+
 const ResolvedTextDecoder =
   typeof TextDecoder !== "function"
     ? encoding.TextDecoder

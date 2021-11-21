@@ -1,5 +1,4 @@
-# Borsh TS
-
+# Borsh TS - Unofficial implementation
 [![Project license](https://img.shields.io/badge/license-Apache2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![NPM version](https://img.shields.io/npm/v/borsh.svg?style=flat-square)](https://npmjs.com/@quantleaf/borsh)
@@ -18,31 +17,53 @@ With this imlementation on can generate serialization/deserialization Schemas us
 **Enum, variant at instruction "slot" 1.** 
 
 ```typescript
-import { generateSchemas, field, variant } from "../schema";
-
-@variant(1)
-class TestEnum {
-    @field({ type: 'u8' })
+@variant(0)
+class Enum0 extends Super {
+    @field({ type: "u8" })
     public a: number;
 
     constructor(a: number) {
-        this.a = a
+    super();
+    this.a = a;
+    }
+}
 
+@variant(1)
+class Enum1 extends Super {
+    @field({ type: "u8" })
+    public b: number;
+
+    constructor(b: number) {
+    super();
+    this.b = b;
     }
 }
 
 class TestStruct {
-    @field({ type: TestEnum })
-    public enum: TestEnum;
+    @field({ type: Super })
+    public enum: Super;
 
-    constructor(value: TestEnum) {
-        this.enum = value
+    constructor(value: Super) {
+    this.enum = value;
     }
 }
-const instance = new TestStruct(new TestEnum(4));
-const generatedSchemas = generatesSchema([TestStruct])
-const buf = serialize(generatedSchemas, instance);
-expect(buf).toEqual(Buffer.from([1, 4]));
+const instance = new TestStruct(new Enum1(4));
+const schemas = generateSchemas([Enum0, Enum1, TestStruct]);
+
+expect(schemas.get(Enum0)).toBeDefined();
+expect(schemas.get(Enum1)).toBeDefined();
+expect(schemas.get(TestStruct)).toBeDefined();
+const serialized = serialize(schemas, instance);
+expect(serialized).toEqual(Buffer.from([1, 4]));
+
+const deserialied = deserialize(
+    schemas,
+    TestStruct,
+    Buffer.from(serialized),
+    BinaryReader
+);
+expect(deserialied.enum).toBeInstanceOf(Enum1);
+expect((deserialied.enum as Enum1).b).toEqual(4);
 
 ```
 
@@ -51,8 +72,6 @@ expect(buf).toEqual(Buffer.from([1, 4]));
 
 
 ```typescript
-import { generateSchemas, field } from "../schema";
-
 class InnerStruct {
     @field({ type: 'typeB' })
     public b: number;
@@ -82,10 +101,7 @@ expect(generatedSchemas.get(InnerStruct)).toEqual({
 
 
 **Option**
-
 ```typescript
-import { generateSchemas, field } from "../schema";
-
 class TestStruct {
   @field({ type: 'u8', option: true })
   public a: number;
@@ -105,11 +121,51 @@ expect(schema).toEqual({
   kind: "struct",
 });
 ```
+
+
+**Custom serialization and deserialization**
+```typescript
+
+interface ComplexObject {
+    a: number;
+    b: number;
+}
+class TestStruct {
+    @field({
+        serialize: (value: ComplexObject, writer) => {
+            writer.writeU16(value.a + value.b);
+        },
+        deserialize: (reader): ComplexObject => {
+            let value = reader.readU16();
+            return {
+                a: value,
+                b: value * 2,
+            };
+        },
+    })
+    public obj: ComplexObject;
+    constructor(obj: ComplexObject) {
+    this.obj = obj;
+    }
+}
+
+const schemas = generateSchemas([TestStruct]);
+const serialized = serialize(schemas, new TestStruct({ a: 2, b: 3 }));
+const deserialied = deserialize(
+    schemas,
+    TestStruct,
+    Buffer.from(serialized),
+    BinaryReader
+);
+expect(deserialied.obj).toBeDefined();
+expect(deserialied.obj.a).toEqual(5);
+expect(deserialied.obj.b).toEqual(10);
+```
+
+
 **Explicit serialization order of fields**
 
 ```typescript
-import { generateSchemas, field } from "../schema";
-
 class TestStruct {
     @field({ type: 'u8', index: 1 })
     public a: number;

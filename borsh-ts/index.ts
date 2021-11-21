@@ -1,7 +1,18 @@
 import bs58 from "bs58";
-import {Schema} from "./schema"
+import {getVariantIndex, Schema} from "./schema"
 import {BorshError} from "./error"
 import {BinaryWriter,BinaryReader} from "./binary"
+import { extendsClass } from "./utils";
+
+export class Assignable {
+  constructor(properties) {
+      Object.keys(properties).map((key) => {
+          this[key] = properties[key];
+      });
+  }
+}
+
+
 
 
 export function baseEncode(value: Uint8Array | string): string {
@@ -15,18 +26,19 @@ export function baseDecode(value: string): Buffer {
   return Buffer.from(bs58.decode(value));
 }
 
-
-
-
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
+}
+export interface OverrideType <T>  {
+    serialize: (T,writer: BinaryWriter) => void,
+    deserialize: (reader: BinaryReader) => T
 }
 
 export function serializeField(
   schema: Schema,
   fieldName: string,
   value: any,
-  fieldType: any,
+  fieldType: any, // A simple type of a CustomField
   writer: any
 ) {
   try {
@@ -55,7 +67,12 @@ export function serializeField(
           serializeField(schema, fieldName, item, fieldType[0], writer);
         });
       }
-    } else if (fieldType.kind !== undefined) {
+    } 
+    else if(typeof fieldType["serialize"] == "function")
+    {
+      fieldType.serialize(value,writer)
+    }
+    else if (fieldType.kind !== undefined) {
       switch (fieldType.kind) {
         case "option": {
           if (value === null || value === undefined) {
@@ -150,6 +167,10 @@ function deserializeField(
         );
       }
     }
+    if(typeof fieldType["deserialize"] == "function")
+    {
+      return fieldType.deserialize(reader)
+    }
 
     if (fieldType.kind === "option") {
       const option = reader.readU8();
@@ -169,23 +190,49 @@ function deserializeField(
   }
 }
 
+
 function deserializeStruct(
   schema: Schema,
-  classType: any,
+  clazz: any,
   reader: BinaryReader
 ) {
-  if (typeof classType.borshDeserialize === "function") {
-    return classType.borshDeserialize(reader);
+  if (typeof clazz.borshDeserialize === "function") {
+    return clazz.borshDeserialize(reader);
   }
 
-  const structSchema = schema.get(classType);
+  let structSchema = schema.get(clazz);
+  let idx = undefined;
+
   if (!structSchema) {
-    throw new BorshError(`Class ${classType.name} is missing in schema`);
+
+    // We find the deserialization schema from one of the subclasses
+
+    // it must be an enum
+    idx = reader.readU8();
+
+    // Try polymorphic deserialziation (i.e.  get all subclasses and find best
+    // class this can be deserialized to)
+
+    // We know that we should serialize into the variant that accounts to the first byte of the read
+    for (const actualClazz of schema.keys())
+    {
+      if(extendsClass(actualClazz, clazz))
+      {
+        const variantIndex = getVariantIndex(actualClazz);
+        if(variantIndex !== undefined && variantIndex === idx)
+        {
+          clazz = actualClazz;
+          structSchema = schema.get(clazz);
+        }
+      }
+    }
+    if(!structSchema)
+      throw new BorshError(`Class ${clazz.name} is missing in schema`);
   }
 
   if (structSchema.kind === "struct") {
     const result = {};
-    for (const [fieldName, fieldType] of schema.get(classType).fields) {
+    for (const [fieldName, fieldType] of schema.get(clazz).fields) {
       result[fieldName] = deserializeField(
         schema,
         fieldName,
@@ -193,21 +240,23 @@ function deserializeStruct(
         reader
       );
     }
-    return new classType(result);
+    return Object.assign(new clazz(), result);
   }
 
   if (structSchema.kind === "enum") {
-    const idx = reader.readU8();
+    if(idx === undefined)
+      idx = reader.readU8();
+
     if (idx >= structSchema.values.length) {
       throw new BorshError(`Enum index: ${idx} is out of range`);
     }
     const [fieldName, fieldType] = structSchema.values[idx];
     const fieldValue = deserializeField(schema, fieldName, fieldType, reader);
-    return new classType({ [fieldName]: fieldValue });
+    return new clazz({ [fieldName]: fieldValue });
   }
 
   throw new BorshError(
-    `Unexpected schema kind: ${structSchema.kind} for ${classType.constructor.name}`
+    `Unexpected schema kind: ${structSchema.kind} for ${clazz.constructor.name}`
   );
 }
 
