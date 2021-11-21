@@ -1,6 +1,6 @@
 {
   "name": "@solvei/borsh",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "readme": "README.md",
   "homepage": "https://github.com/the-solvei/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",
@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/the-solvei/borsh-js.git"
+    "url": "git+https://github.com/the-solvei/borsh-ts.git"
   },
   "keywords": [
     "serializer",

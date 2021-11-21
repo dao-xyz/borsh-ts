@@ -1,8 +1,8 @@
 # Borsh TS - Unofficial implementation
 [![Project license](https://img.shields.io/badge/license-Apache2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![NPM version](https://img.shields.io/npm/v/borsh.svg?style=flat-square)](https://npmjs.com/@quantleaf/borsh)
-[![Size on NPM](https://img.shields.io/bundlephobia/minzip/borsh.svg?style=flat-square)](https://npmjs.com/@quantleaf/borsh)
+[![NPM version](https://img.shields.io/npm/v/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
+[![Size on NPM](https://img.shields.io/bundlephobia/minzip/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
 
 **Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects.
 
