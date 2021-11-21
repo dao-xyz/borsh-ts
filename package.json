@@ -15,13 +15,13 @@
     "build:dev": "tsc -p ./tsconfig.json",
     "build:prod": "tsc -p ./tsconfig.prod.json",
     "test": "jest test --runInBand",
-    "fuzz": "jsfuzz borsh-ts/test/fuzz/borsh-roundtrip.js borsh-ts/test/fuzz/corpus/",
+    "fuzz": "jsfuzz src/test/fuzz/borsh-roundtrip.js src/test/fuzz/corpus/",
     "dev": "yarn build:dev -w",
     "pretest": "yarn build",
-    "lint": "eslint borsh-ts/**/*.ts",
-    "pretty": "prettier --write borsh-ts/**/*.ts package.json",
-    "pretty:check": "yarn prettier --loglevel error --check  borsh-ts/**/*.ts package.json",
-    "fix": "eslint borsh-ts/**/*.ts --fix"
+    "lint": "eslint src/**/*.ts",
+    "pretty": "prettier --write src/**/*.ts package.json",
+    "pretty:check": "yarn prettier --loglevel error --check  src/**/*.ts package.json",
+    "fix": "eslint src/**/*.ts --fix"
   },
   "repository": {
     "type": "git",
