@@ -1,8 +1,8 @@
 {
-  "name": "@quantleaf/borsh",
-  "version": "0.0.2",
+  "name": "@solvei/borsh",
+  "version": "0.0.2.1",
   "readme": "README.md",
-  "homepage": "https://github.com/quantleaf/borsh-ts#readme",
+  "homepage": "https://github.com/the-solvei/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/near/borsh-js.git"
+    "url": "git+https://github.com/the-solvei/borsh-js.git"
   },
   "keywords": [
     "serializer",
