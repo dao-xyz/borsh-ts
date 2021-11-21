@@ -24,7 +24,7 @@ class Enum0 extends Super {
 
     constructor(a: number) {
     super();
-    this.a = a;
+        this.a = a;
     }
 }
 
@@ -35,7 +35,7 @@ class Enum1 extends Super {
 
     constructor(b: number) {
     super();
-    this.b = b;
+        this.b = b;
     }
 }
 
@@ -44,7 +44,7 @@ class TestStruct {
     public enum: Super;
 
     constructor(value: Super) {
-    this.enum = value;
+        this.enum = value;
     }
 }
 const instance = new TestStruct(new Enum1(4));
