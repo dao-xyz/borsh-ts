@@ -1,6 +1,6 @@
 {
   "name": "@solvei/borsh",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "readme": "README.md",
   "homepage": "https://github.com/the-solvei/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",
@@ -12,10 +12,11 @@
     "LICENSE-MIT.txt"
   ],
   "scripts": {
-    "build": "tsc -p ./tsconfig.json",
+    "build:dev": "tsc -p ./tsconfig.json",
+    "build:prod": "tsc -p ./tsconfig.prod.json",
     "test": "jest test --runInBand",
     "fuzz": "jsfuzz borsh-ts/test/fuzz/borsh-roundtrip.js borsh-ts/test/fuzz/corpus/",
-    "dev": "yarn build -w",
+    "dev": "yarn build:dev -w",
     "pretest": "yarn build",
     "lint": "eslint borsh-ts/**/*.ts",
     "pretty": "prettier --write borsh-ts/**/*.ts package.json",

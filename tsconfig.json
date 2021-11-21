@@ -9,7 +9,7 @@
     "module": "commonjs",
     "target": "esnext",
     "moduleResolution": "node",
-    "outDir": "./lib",
+    "outDir": "./dist",
     "declaration": true,
     "preserveSymlinks": true,
     "preserveWatchOutput": true,
@@ -17,11 +17,11 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": false,
-    "noImplicitReturns": true,
     "experimentalDecorators": true,
+    "noImplicitReturns": true,
     "noUnusedLocals": true
     
   },
-  "files": ["./borsh-ts/index.ts", "./borsh-ts/test/schema.test.ts"]
+  "files": ["src/index.ts", "src/__tests__/schema.test.ts"]
 }
 
