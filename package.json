@@ -14,7 +14,7 @@
   "scripts": {
     "build": "yarn build:dev",
     "build:dev": "tsc -p ./tsconfig.json",
-    "build:prod": "tsc -p ./tsconfig.prod.json",
+    "build:prod": "rimraf dist && tsc -p ./tsconfig.prod.json",
     "test": "jest test --runInBand",
     "fuzz": "jsfuzz src/test/fuzz/borsh-roundtrip.js src/test/fuzz/corpus/",
     "dev": "yarn build:dev -w",
@@ -55,6 +55,7 @@
     "js-sha256": "^0.9.0",
     "jsfuzz": "^1.0.14",
     "prettier": "^2.4.1",
+    "rimraf": "^3.0.2",
     "ts-jest": "^27.0.7",
     "typescript": "^3.6.2"
   },
