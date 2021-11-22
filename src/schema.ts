@@ -168,7 +168,7 @@ export function field(properties: SimpleField | CustomField<any> ) {
  * @param validate, run validation?
  * @returns Schema map
  */
-export const generateSchemas = (clazzes: any[], validate?: boolean): Map<any, StructKind> => {
+export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
     let ret = new Map<any, StructKind>()
     let dependencies = new Set()
     clazzes.forEach((clazz) => {
