@@ -33,7 +33,7 @@
   "author": "Near Inc",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/near/borsh-js/issues"
+    "url": "https://github.com/the-solvei/borsh-ts/issues"
   },
   "devDependencies": {
     "@types/babel__core": "^7.1.2",
