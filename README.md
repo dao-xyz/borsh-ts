@@ -17,6 +17,8 @@ With this imlementation on can generate serialization/deserialization Schemas us
 **Enum, variant at instruction "slot" 1.** 
 
 ```typescript
+class Super {}
+
 @variant(0)
 class Enum0 extends Super {
     @field({ type: "u8" })
@@ -265,4 +267,4 @@ This repository is distributed under the terms of both the MIT license and the A
 See [LICENSE-MIT](LICENSE-MIT.txt) and [LICENSE-APACHE](LICENSE-APACHE) for details.
 
 For official releases see:
-[Borsh]:          https://borsh.io
+[Borsh]: https://borsh.io

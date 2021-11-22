@@ -10,7 +10,6 @@ export class BorshError extends Error {
 
     addToFieldPath(fieldName: string) {
         this.fieldPath.splice(0, 0, fieldName);
-        // NOTE: Modifying message directly as jest doesn't use .toString()
         this.message = this.originalMessage + ": " + this.fieldPath.join(".");
     }
 }

@@ -5,14 +5,9 @@ import "reflect-metadata";
 import { OverrideType, serializeField } from ".";
 import { BinaryWriter } from "./binary";
 import { BorshError } from "./error";
-import { Constructor, getSuperClasses } from "./utils";
+import { Constructor } from "./utils";
 export type Schema = Map<Function, any>;
-
-
 const STRUCT_META_DATA_SYMBOL = '__borsh_struct_metadata__';
-
-const _SUPERCLASS_TO_SUBCLASS: Map<Constructor<any>,Set<Constructor<any>>>  = new Map();
-
 
 const structMetaDataKey = (constructorName: string) => {
     return STRUCT_META_DATA_SYMBOL + constructorName;
@@ -78,24 +73,6 @@ export const getVariantIndex = (clazz:any):number | undefined=>
         return clazz.prototype._borsh_variant_index()
     return undefined
 }
-/**
- * Build class inheritance map so we can do Polymorhpic deserialization (later)
- * @param clazz 
- */
-const _buildClassMap = (subClass:Constructor<any>) => {
-    const superClasses = getSuperClasses(subClass);
-    for (const superClass of superClasses)
-    {
-        if(!_SUPERCLASS_TO_SUBCLASS.has(superClass))
-        {
-            _SUPERCLASS_TO_SUBCLASS.set(superClass, new Set());
-        }
-        if(_SUPERCLASS_TO_SUBCLASS.get(superClass).has(subClass))
-        {
-            return; // we have been here before!
-        }
-    }
-}
 
 
 /**
@@ -105,8 +82,6 @@ const _buildClassMap = (subClass:Constructor<any>) => {
 export function field(properties: SimpleField | CustomField<any> ) {
     return (target: {} | any, name?: PropertyKey): any => {
         const metaDataKey = structMetaDataKey(target.constructor.name);
-        _buildClassMap(target.constructor);
-
         let schema: StructKindDependent = Reflect.getMetadata(metaDataKey, target.constructor); // Assume StructKind already exist
         const key = name.toString();
         if (!schema) {

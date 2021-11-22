@@ -1,6 +1,6 @@
 {
   "name": "@solvei/borsh",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "readme": "README.md",
   "homepage": "https://githusb.com/the-solvei/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",

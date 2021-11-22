@@ -4,10 +4,6 @@ import {BorshError} from "./error"
 import {BinaryWriter,BinaryReader} from "./binary"
 import { extendsClass } from "./utils";
 
-
-
-
-
 export function baseEncode(value: Uint8Array | string): string {
   if (typeof value === "string") {
     value = Buffer.from(value, "utf8");
