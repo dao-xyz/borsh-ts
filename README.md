@@ -1,8 +1,8 @@
-# Borsh TS - Unofficial implementation
+# Borsh TS 
 [![Project license](https://img.shields.io/badge/license-Apache2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![NPM version](https://img.shields.io/npm/v/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
-[![Size on NPM](https://img.shields.io/bundlephobia/minzip/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
+[![NPM version](https://img.shields.io/npm/v/@solvei/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
+[![Size on NPM](https://img.shields.io/bundlephobia/minzip/@solvei/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
 
 **Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects.
 
@@ -199,13 +199,13 @@ const schemas = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u
 ## Serializing an object
 ```typescript
 const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const buffer = borsh.serialize(SCHEMAS, value);
+const buffer = serialize(SCHEMAS, value);
 ```
 
 ## Deserializing an object
 ```typescript
 const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const newValue = borsh.deserialize(SCHEMAS, SomeClass, buffer);
+const newValue = deserialize(SCHEMAS, SomeClass, buffer);
 ```
 
 In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
