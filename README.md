@@ -250,11 +250,6 @@ Install dependencies:
 yarn install
 ```
 
-Continuously build with:
-```bash
-yarn dev
-```
-
 Run tests:
 ```bash
 yarn test
