@@ -208,6 +208,21 @@ const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
 const newValue = borsh.deserialize(SCHEMAS, SomeClass, buffer);
 ```
 
+In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
+
+```typescript
+class SomeClass
+{
+    constructor(data = undefined)
+    {
+        if(data)
+        {
+            ...
+        }
+    }
+}
+```
+
 ## Type Mappings
 
 | Borsh                 | TypeScript     |

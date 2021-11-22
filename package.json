@@ -4,14 +4,15 @@
   "readme": "README.md",
   "homepage": "https://github.com/the-solvei/borsh-ts#readme",
   "description": "Binary Object Representation Serializer for Hashing",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
   "files": [
-    "lib",
+    "src",
     "LICENSE-APACHE",
     "LICENSE-MIT.txt"
   ],
   "scripts": {
+    "build": "yarn build:dev",
     "build:dev": "tsc -p ./tsconfig.json",
     "build:prod": "tsc -p ./tsconfig.prod.json",
     "test": "jest test --runInBand",

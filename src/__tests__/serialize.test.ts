@@ -1,12 +1,33 @@
-const borsh = require('../../lib/index');
+import { BinaryReader, BinaryWriter} from "../binary";
+import {serialize, deserialize, baseDecode, baseEncode} from "../index"
+
 const BN = require('bn.js');
 
+export class Assignable {
+    constructor(properties) {
+        if (properties)
+        {
+            Object.keys(properties).map((key) => {
+                this[key] = properties[key];
+            });
+        }
+    }
+  }
+  
+
+class Test extends Assignable  {
+  
+    constructor(data:any)
+    {
+        super(data);
+    }
+}
 
 
-class Test extends Assignable { }
 
 class Serializable {
-    constructor(data) {
+    data:any;
+    constructor(data:any ) {
         this.data = data;
     }
 
@@ -22,8 +43,8 @@ class Serializable {
 test('serialize object', async () => {
     const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
     const schema = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u64'], ['z', 'string'], ['q', [3]]] }]]);
-    const buf = borsh.serialize(schema, value);
-    const newValue = borsh.deserialize(schema, Test, buf);
+    const buf = serialize(schema, value);
+    const newValue = deserialize(schema, Test, Buffer.from(buf)) as any;
     expect(newValue.x).toEqual(255);
     expect(newValue.y.toString()).toEqual('20');
     expect(newValue.z).toEqual('123');
@@ -33,12 +54,12 @@ test('serialize object', async () => {
 test('serialize optional field', async () => {
     const schema = new Map([[Test, { kind: 'struct', fields: [['x', { kind: 'option', type: 'string' }]] }]]);
 
-    let buf = borsh.serialize(schema, new Test({ x: '123', }));
-    let newValue = borsh.deserialize(schema, Test, buf);
+    let buf = serialize(schema, new Test({ x: '123', }));
+    let newValue = deserialize(schema, Test, Buffer.from(buf)) as any;
     expect(newValue.x).toEqual('123');
 
-    buf = borsh.serialize(schema, new Test({}));
-    newValue = borsh.deserialize(schema, Test, buf);
+    buf = serialize(schema, new Test({}));
+    newValue = deserialize(schema, Test, Buffer.from(buf)) as any;
     expect(newValue.x).toEqual(undefined);
 });
 
@@ -65,8 +86,8 @@ test('serialize max uint', async () => {
             ['t', 'u512']
         ]
     }]]);
-    const buf = borsh.serialize(schema, value);
-    const newValue = borsh.deserialize(schema, Test, buf);
+    const buf = serialize(schema, value);
+    const newValue = deserialize(schema, Test, Buffer.from(buf)) as any;
     expect(newValue.x).toEqual(255);
     expect(newValue.y).toEqual(65535);
     expect(newValue.z).toEqual(4294967295);
@@ -79,8 +100,8 @@ test('serialize max uint', async () => {
 test('serialize/deserialize with class methods', () => {
     const item = new Serializable(10);
 
-    const buf = borsh.serialize(null, item);
-    const newValue = borsh.deserialize(null, Serializable, buf);
+    const buf = serialize(null, item);
+    const newValue = deserialize(null, Serializable, Buffer.from(buf)) as any;
 
     expect(newValue).toEqual(item);
 });
@@ -96,8 +117,8 @@ test('serialize/deserialize fixed array', () => {
         ]
     }]]);
 
-    const buf = borsh.serialize(schema, value);
-    const deserializedValue = borsh.deserialize(schema, Test, buf);
+    const buf = serialize(schema, value);
+    const deserializedValue = deserialize(schema, Test, Buffer.from(buf)) as any;
 
     expect(buf).toEqual(Buffer.from([5, 0, 0, 0, 104, 101, 108, 108, 111, 5, 0, 0, 0, 119, 111, 114, 108, 100]));
     expect(deserializedValue.a).toEqual(['hello', 'world']);
@@ -114,7 +135,7 @@ test('errors serializing fixed array of wrong size', () => {
         ]
     }]]);
 
-    expect(() => borsh.serialize(schema, value)).toThrow('Expecting byte array of length 2, but got 3 bytes');
+    expect(() => serialize(schema, value)).toThrow('Expecting byte array of length 2, but got 3 bytes');
 });
 
 test('errors serializing fixed array of wrong type', () => {
@@ -128,39 +149,39 @@ test('errors serializing fixed array of wrong type', () => {
         ]
     }]]);
 
-    expect(() => borsh.serialize(schema, value)).toThrow('The first argument must be of type string');
+    expect(() => serialize(schema, value)).toThrow('The first argument must be of type string');
 });
 
 test('baseEncode string test', async () => {
-    const encodedValue = borsh.baseEncode('244ZQ9cgj3CQ6bWBdytfrJMuMQ1jdXLFGnr4HhvtCTnM');
+    const encodedValue = baseEncode('244ZQ9cgj3CQ6bWBdytfrJMuMQ1jdXLFGnr4HhvtCTnM');
     const expectedValue = 'HKk9gqNj4xb4rLdJuzT5zzJbLa4vHBdYCxQT9H99csQh6nz3Hfpqn4jtWA92';
     expect(encodedValue).toEqual(expectedValue);
 });
 
 test('baseEncode array test', async () => {
-    expect(borsh.baseEncode([1, 2, 3, 4, 5])).toEqual('7bWpTW');
+    expect(baseEncode([1, 2, 3, 4, 5] as any as Uint8Array)).toEqual('7bWpTW');
 });
 
 test('baseDecode test', async () => {
     const value = 'HKk9gqNj4xb4rLdJu';
     const expectedDecodedArray = [3, 96, 254, 84, 10, 240, 93, 199, 52, 244, 164, 240, 6];
     const expectedBuffer = Buffer.from(expectedDecodedArray);
-    expect(borsh.baseDecode(value)).toEqual(expectedBuffer);
+    expect(baseDecode(value)).toEqual(expectedBuffer);
 });
 
 test('base encode and decode test', async () => {
     const value = '244ZQ9cgj3CQ6bWBdytfrJMuMQ1jdXLFGnr4HhvtCTnM';
-    expect(borsh.baseEncode(borsh.baseDecode(value))).toEqual(value);
+    expect(baseEncode(baseDecode(value))).toEqual(value);
 });
 
 test('serialize with custom writer/reader', async () => {
-    class ExtendedWriter extends borsh.BinaryWriter {
+    class ExtendedWriter extends BinaryWriter {
         writeDate(value) {
             this.writeU64(value.getTime());
         }
     }
 
-    class ExtendedReader extends borsh.BinaryReader {
+    class ExtendedReader extends BinaryReader {
         readDate() {
             const value = this.readU64();
             return new Date(value.toNumber());
@@ -171,7 +192,7 @@ test('serialize with custom writer/reader', async () => {
     const value = new Test({ x: new Date(time) });
     const schema = new Map([[Test, { kind: 'struct', fields: [['x', 'date']] }]]);
 
-    const buf = borsh.serialize(schema, value, ExtendedWriter);
-    const newValue = borsh.deserialize(schema, Test, buf, ExtendedReader);
+    const buf = serialize(schema, value, ExtendedWriter);
+    const newValue = deserialize(schema, Test, Buffer.from(buf), ExtendedReader) as any;
     expect(newValue.x).toEqual(new Date(time));
 });

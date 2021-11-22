@@ -4,13 +4,6 @@ import {BorshError} from "./error"
 import {BinaryWriter,BinaryReader} from "./binary"
 import { extendsClass } from "./utils";
 
-export class Assignable {
-  constructor(properties) {
-      Object.keys(properties).map((key) => {
-          this[key] = properties[key];
-      });
-  }
-}
 
 
 
