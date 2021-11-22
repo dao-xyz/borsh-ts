@@ -30,7 +30,7 @@
     "consistency",
     "deterministic"
   ],
-  "author": "Near Inc",
+  "author": "The Solvei",
   "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/the-solvei/borsh-ts/issues"
