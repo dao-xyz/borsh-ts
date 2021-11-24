@@ -192,7 +192,7 @@ expect(schema).toEqual({
 });
 ```
 
-**Inheritance**
+## Inheritance
 Schema generation with class inheritance is not supported (yet)
 
 ## Examples of manual schema generation
