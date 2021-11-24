@@ -192,6 +192,9 @@ expect(schema).toEqual({
 });
 ```
 
+**Inheritance**
+Schema generation with class inheritance is not supported (yet)
+
 ## Examples of manual schema generation
 ```typescript
 const schemas = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u64'], ['z', 'string'], ['q', [3]]] }]]);
