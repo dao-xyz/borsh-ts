@@ -218,6 +218,12 @@ function deserializeStruct(
     if(!structSchema)
       throw new BorshError(`Class ${clazz.name} is missing in schema`);
   }
+  else if(getVariantIndex(clazz) !== undefined)
+  {
+    // It is an enum, but we deserialize into its variant directly
+    // This means we should omit the variant index
+    reader.readU8();
+  }
 
   if (structSchema.kind === "struct") {
     const result = {};

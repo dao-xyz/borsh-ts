@@ -82,6 +82,12 @@ describe("enum", () => {
     const generatedSchemas = generateSchemas([TestEnum]);
     const buf = serialize(generatedSchemas, instance);
     expect(buf).toEqual(Buffer.from([1, 3]));
+    const deserialized = deserialize(
+      generatedSchemas,
+      TestEnum,
+      Buffer.from(buf)
+    );
+    expect(deserialized.a).toEqual(3);
   });
 
   test("enum field serialization/deserialization", () => {
