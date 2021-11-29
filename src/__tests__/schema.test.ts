@@ -1,3 +1,4 @@
+import BN from "bn.js";
 import { BinaryReader } from "../binary";
 import { BorshError } from "../error";
 import { deserialize, serialize } from "../index";
@@ -9,19 +10,38 @@ describe("struct", () => {
       @field({ type: "u8" })
       public a: number;
 
-      @field({ type: "u16" })
-      public b: number;
-    }
+      @field({ type: "u64" })
+      public b: BN;
 
-    const generatedSchemas = generateSchemas([TestStruct]).get(TestStruct);
+      constructor(properties?: { a: number; b: BN }) {
+        if (properties) {
+          this.a = properties.a;
+          this.b = properties.b;
+        }
+      }
+    }
+    const generatedSchemas = generateSchemas([TestStruct]);
     const expectedResult: StructKind = {
       kind: "struct",
       fields: [
         ["a", "u8"],
-        ["b", "u16"],
+        ["b", "u64"],
       ],
     };
-    expect(generatedSchemas).toEqual(expectedResult);
+    expect(generatedSchemas.get(TestStruct)).toEqual(expectedResult);
+    const bn123 = new BN(123);
+    const instance = new TestStruct({ a: 1, b: bn123 });
+    const buf = serialize(generatedSchemas, instance);
+    expect(buf).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    const deserialized = deserialize(
+      generatedSchemas,
+      TestStruct,
+      Buffer.from(buf)
+    );
+    expect(deserialized.a).toEqual(1);
+    expect(deserialized.b.toNumber()).toEqual(123);
+    const bufAgain = serialize(generatedSchemas, deserialized);
+    expect(bufAgain).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
   });
 
   test("struct fields", () => {
