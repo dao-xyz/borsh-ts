@@ -150,7 +150,7 @@ export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
         let schema = (Reflect.getMetadata(structMetaDataKey(clazz.name), clazz) as StructKindDependent)
         if (schema) {
             if (validate) {
-                validateSchema(schema)
+                validateSchema(schema,clazz)
             }
 
             ret.set(clazz, {
@@ -177,7 +177,11 @@ export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
 }
 
 
-const validateSchema = (structSchema: StructKindDependent) => {
+const validateSchema = (structSchema: StructKindDependent,clazz:any) => {
+    if (!structSchema.fields)
+    {
+        throw new BorshError("Missing fields for class: " + clazz.name);
+    }
     structSchema.fields.forEach((field) => {
         if (!field) {
             throw new BorshError("Field is missing definition, most likely due to field indexing with missing indices")
