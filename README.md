@@ -11,7 +11,16 @@ safety, speed, and comes with a strict specification.
 
 With this imlementation on can generate serialization/deserialization Schemas using decorators. 
 
+## Installation
 
+```
+npm install @solvei/borsh
+```
+or 
+```
+yarn add @solvei/borsh
+
+```
 ## Examples of schema generation using decorators
 
 **Enum, variant at instruction "slot" 1.** 
