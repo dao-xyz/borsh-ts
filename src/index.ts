@@ -88,18 +88,7 @@ export function serializeStruct(schema: Schema, obj: any, writer: BinaryWriter) 
     structSchema.fields.map((field) => {
       serializeField(schema, field.key, obj[field.key], field.type, writer);
     });
-  } /* else if (structSchema.kind === "enum") {
-    const name = obj[structSchema.field];
-    for (let idx = 0; idx < structSchema.values.length; ++idx) {
-      const [fieldName, fieldType]: [any, any] = structSchema.values[idx];
-      if (fieldName === name) {
-        writer.writeU8(idx);
-        serializeField(schema, fieldName, obj[fieldName], fieldType, writer);
-        break;
-      }
-    }
-  } 
-  */
+  }
   else {
     throw new BorshError(
       `Unexpected schema for ${obj.constructor.name}`
@@ -214,19 +203,6 @@ function deserializeStruct(
     }
     return Object.assign(new clazz(), result);
   }
-
-  /* if (structSchema.kind === "enum") {
-    if (idx === undefined)
-      idx = reader.readU8();
-
-    if (idx >= structSchema.values.length) {
-      throw new BorshError(`Enum index: ${idx} is out of range`);
-    }
-    const [fieldName, fieldType] = structSchema.values[idx];
-    const fieldValue = deserializeField(schema, fieldName, fieldType, reader);
-    return new clazz({ [fieldName]: fieldValue });
-  } */
-
   throw new BorshError(
     `Unexpected schema ${clazz.constructor.name}`
   );
