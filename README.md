@@ -4,9 +4,6 @@
 [![NPM version](https://img.shields.io/npm/v/@westake/borsh.svg?style=flat-square)](https://npmjs.com/@westake/borsh)
 [![Size on NPM](https://img.shields.io/bundlephobia/minzip/@westake/borsh.svg?style=flat-square)](https://npmjs.com/@westake/borsh)
 
-# Project has moved with organisation name to [here](https://github.com/westake/borsh-ts)
-
-
 **Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects.
 
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
