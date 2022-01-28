@@ -4,7 +4,7 @@
 [![NPM version](https://img.shields.io/npm/v/@westake/borsh.svg?style=flat-square)](https://npmjs.com/@westake/borsh)
 [![Size on NPM](https://img.shields.io/bundlephobia/minzip/@westake/borsh.svg?style=flat-square)](https://npmjs.com/@westake/borsh)
 
-**Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects.
+**Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using field and class decorators.
 
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
@@ -21,7 +21,38 @@ or
 yarn add @westake/borsh
 ```
 
+
+## Serializing and deserializing
+
+### Serializing an object
+*SomeClass* class is decorated using decorators explained later
+```typescript
+const schemas = generateSchemas([Test])
+const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
+
+// Serialize
+const buffer = serialize(schemas, value);
+
+// Deserialize
+const deserializedValue = deserialize(schemas, SomeClass, buffer);
+```
+
+In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
+
+```typescript
+class SomeClass
+{
+    constructor(data = undefined)
+    {
+        if(data)
+        {
+            ...
+        }
+    }
+}
+```
 ## Examples of schema generation using decorators
+For more examples, see the [tests](./src/__tests__index.test.ts).
 
 **Enum, variant at instruction "slot" 1.** 
 
@@ -58,81 +89,54 @@ class TestStruct {
         this.enum = value;
     }
 }
-const instance = new TestStruct(new Enum1(4));
-const schemas = generateSchemas([Enum0, Enum1, TestStruct]);
-
-expect(schemas.get(Enum0)).toBeDefined();
-expect(schemas.get(Enum1)).toBeDefined();
-expect(schemas.get(TestStruct)).toBeDefined();
-const serialized = serialize(schemas, instance);
-expect(serialized).toEqual(Buffer.from([1, 4]));
-
-const deserialied = deserialize(
-    schemas,
-    TestStruct,
-    Buffer.from(serialized),
-    BinaryReader
-);
-expect(deserialied.enum).toBeInstanceOf(Enum1);
-expect((deserialied.enum as Enum1).b).toEqual(4);
 
 ```
 
 
 **Nested Schema generation for structs**
-
-
 ```typescript
 class InnerStruct {
-    @field({ type: 'typeB' })
+
+    @field({ type: 'u32' })
     public b: number;
 
 }
 
 class TestStruct {
+
     @field({ type: InnerStruct })
     public a: InnerStruct;
 
 }
-
-const generatedSchemas = generateSchemas([TestStruct])
-expect(generatedSchemas.get(TestStruct)).toEqual({
-    kind: 'struct',
-    fields: [
-        ['a', InnerStruct],
-    ]
-});
-expect(generatedSchemas.get(InnerStruct)).toEqual({
-    kind: 'struct',
-    fields: [
-        ['b', 'typeB'],
-    ]
-});
 ```
 
+
+**Arrays**
+
+***Dynamically sized***
+```typescript
+class TestStruct {
+  @field({ type: vec('u8') })
+  public vec: number[];
+}
+```
+
+***Fixed size***
+```typescript
+class TestStruct {
+  @field({ type: fixedArray('u8') })
+  public vec: number[];
+}
+```
 
 **Option**
 ```typescript
 class TestStruct {
-  @field({ type: 'u8', option: true })
+  @field({ type: option('u8') })
   public a: number;
 
 }
-const schema = generateSchemas([TestStruct]).get(TestStruct)
-expect(schema).toEqual({
-  fields: [
-      [
-          "a",
-          {
-              kind: 'option',
-              type: 'u8'
-          },
-      ]
-  ],
-  kind: "struct",
-});
 ```
-
 
 **Custom serialization and deserialization**
 ```typescript
@@ -155,8 +159,9 @@ class TestStruct {
         },
     })
     public obj: ComplexObject;
+
     constructor(obj: ComplexObject) {
-    this.obj = obj;
+        this.obj = obj;
     }
 }
 
@@ -185,6 +190,7 @@ class TestStruct {
     @field({ type: 'u8', index: 0 })
     public b: number;
 }
+
 const schema = generateSchemas([TestStruct]).get(TestStruct)
 expect(schema).toEqual({
     fields: [
@@ -204,38 +210,6 @@ expect(schema).toEqual({
 ## Inheritance
 Schema generation with class inheritance is not supported (yet)
 
-## Examples of manual schema generation
-```typescript
-const schemas = new Map([[Test, { kind: 'struct', fields: [['x', 'u8'], ['y', 'u64'], ['z', 'string'], ['q', [3]]] }]]);
-```
-
-
-## Serializing an object
-```typescript
-const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const buffer = serialize(SCHEMAS, value);
-```
-
-## Deserializing an object
-```typescript
-const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
-const newValue = deserialize(SCHEMAS, SomeClass, buffer);
-```
-
-In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
-
-```typescript
-class SomeClass
-{
-    constructor(data = undefined)
-    {
-        if(data)
-        {
-            ...
-        }
-    }
-}
-```
 
 ## Type Mappings
 

@@ -1,7 +1,7 @@
 import bs58 from "bs58";
-import {getVariantIndex, Schema} from "./schema"
-import {BorshError} from "./error"
-import {BinaryWriter,BinaryReader} from "./binary"
+import { FixedArrayKind, getVariantIndex, OptionKind, Schema, StructKind, VecKind } from "./schema"
+import { BorshError } from "./error"
+import { BinaryWriter, BinaryReader } from "./binary"
 import { extendsClass } from "./utils";
 
 export function baseEncode(value: Uint8Array | string): string {
@@ -18,9 +18,9 @@ export function baseDecode(value: string): Buffer {
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
-export interface OverrideType <T>  {
-    serialize: (T,writer: BinaryWriter) => void,
-    deserialize: (reader: BinaryReader) => T
+export interface OverrideType<T> {
+  serialize: (T, writer: BinaryWriter) => void,
+  deserialize: (reader: BinaryReader) => T
 }
 
 export function serializeField(
@@ -34,48 +34,35 @@ export function serializeField(
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
     if (typeof fieldType === "string") {
       writer[`write${capitalizeFirstLetter(fieldType)}`](value);
-    } else if (fieldType instanceof Array) {
-      if (typeof fieldType[0] === "number") {
-        if (value.length !== fieldType[0]) {
+    } else if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
+      let len = value.length;
+      if (fieldType instanceof FixedArrayKind) {
+        if (fieldType.size != len) {
           throw new BorshError(
-            `Expecting byte array of length ${fieldType[0]}, but got ${value.length} bytes`
+            `Expecting array of length ${fieldType[0]}, but got ${value.length}`
           );
         }
-        writer.writeFixedArray(value);
-      } else if (fieldType.length === 2 && typeof fieldType[1] === "number") {
-        if (value.length !== fieldType[1]) {
-          throw new BorshError(
-            `Expecting byte array of length ${fieldType[1]}, but got ${value.length} bytes`
-          );
-        }
-        for (let i = 0; i < fieldType[1]; i++) {
-          serializeField(schema, null, value[i], fieldType[0], writer);
-        }
-      } else {
-        writer.writeArray(value, (item: any) => {
-          serializeField(schema, fieldName, item, fieldType[0], writer);
-        });
       }
-    } 
-    else if(typeof fieldType["serialize"] == "function")
-    {
-      fieldType.serialize(value,writer)
+      else {
+        writer.writeU32(len) // For dynamically sized array we write the size as u32 according to specification
+      }
+      for (let i = 0; i < len; i++) {
+        serializeField(schema, null, value[i], fieldType.elementType, writer);
+      }
     }
-    else if (fieldType.kind !== undefined) {
-      switch (fieldType.kind) {
-        case "option": {
-          if (value === null || value === undefined) {
-            writer.writeU8(0);
-          } else {
-            writer.writeU8(1);
-            serializeField(schema, fieldName, value, fieldType.type, writer);
-          }
-          break;
-        }
-        default:
-          throw new BorshError(`FieldType ${fieldType} unrecognized`);
+    else if (fieldType instanceof OptionKind) {
+      if (value === null || value === undefined) {
+        writer.writeU8(0);
+      } else {
+        writer.writeU8(1);
+        serializeField(schema, fieldName, value, fieldType.elementType, writer);
       }
-    } else {
+
+    }
+    else if (typeof fieldType["serialize"] == "function") {
+      fieldType.serialize(value, writer)
+    }
+    else {
       serializeStruct(schema, value, writer);
     }
   } catch (error) {
@@ -88,7 +75,7 @@ export function serializeField(
 
 export function serializeStruct(schema: Schema, obj: any, writer: BinaryWriter) {
   if (typeof obj.borshSerialize === "function") {
-    obj.borshSerialize(schema,writer);
+    obj.borshSerialize(schema, writer);
     return;
   }
 
@@ -97,11 +84,11 @@ export function serializeStruct(schema: Schema, obj: any, writer: BinaryWriter) 
     throw new BorshError(`Class ${obj.constructor.name} is missing in schema`);
   }
 
-  if (structSchema.kind === "struct") {
-    structSchema.fields.map(([fieldName, fieldType]: [any, any]) => {
-      serializeField(schema, fieldName, obj[fieldName], fieldType, writer);
+  if (structSchema instanceof StructKind) {
+    structSchema.fields.map((field) => {
+      serializeField(schema, field.key, obj[field.key], field.type, writer);
     });
-  } else if (structSchema.kind === "enum") {
+  } /* else if (structSchema.kind === "enum") {
     const name = obj[structSchema.field];
     for (let idx = 0; idx < structSchema.values.length; ++idx) {
       const [fieldName, fieldType]: [any, any] = structSchema.values[idx];
@@ -111,9 +98,11 @@ export function serializeStruct(schema: Schema, obj: any, writer: BinaryWriter) 
         break;
       }
     }
-  } else {
+  } 
+  */
+  else {
     throw new BorshError(
-      `Unexpected schema kind: ${structSchema.kind} for ${obj.constructor.name}`
+      `Unexpected schema for ${obj.constructor.name}`
     );
   }
 }
@@ -141,30 +130,22 @@ function deserializeField(
       return reader[`read${capitalizeFirstLetter(fieldType)}`]();
     }
 
-    if (fieldType instanceof Array) {
-      if (typeof fieldType[0] === "number") {
-        return reader.readFixedArray(fieldType[0]);
-      } else if (typeof fieldType[1] === "number") {
-        const arr = [];
-        for (let i = 0; i < fieldType[1]; i++) {
-          arr.push(deserializeField(schema, null, fieldType[0], reader));
-        }
-        return arr;
-      } else {
-        return reader.readArray(() =>
-          deserializeField(schema, fieldName, fieldType[0], reader)
-        );
+    if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
+      let len = fieldType instanceof FixedArrayKind ? fieldType.size : reader.readU32();
+      let arr = new Array(len);
+      for (let i = 0; i < len; i++) {
+        arr[i] = deserializeField(schema, null, fieldType.elementType, reader);
       }
+      return arr;
     }
-    if(typeof fieldType["deserialize"] == "function")
-    {
+    if (typeof fieldType["deserialize"] == "function") {
       return fieldType.deserialize(reader)
     }
 
-    if (fieldType.kind === "option") {
+    if (fieldType instanceof OptionKind) {
       const option = reader.readU8();
       if (option) {
-        return deserializeField(schema, fieldName, fieldType.type, reader);
+        return deserializeField(schema, fieldName, fieldType.elementType, reader);
       }
 
       return undefined;
@@ -203,43 +184,39 @@ function deserializeStruct(
     // class this can be deserialized to)
 
     // We know that we should serialize into the variant that accounts to the first byte of the read
-    for (const actualClazz of schema.keys())
-    {
-      if(extendsClass(actualClazz, clazz))
-      {
+    for (const actualClazz of schema.keys()) {
+      if (extendsClass(actualClazz, clazz)) {
         const variantIndex = getVariantIndex(actualClazz);
-        if(variantIndex !== undefined && variantIndex === idx)
-        {
+        if (variantIndex !== undefined && variantIndex === idx) {
           clazz = actualClazz;
           structSchema = schema.get(clazz);
         }
       }
     }
-    if(!structSchema)
+    if (!structSchema)
       throw new BorshError(`Class ${clazz.name} is missing in schema`);
   }
-  else if(getVariantIndex(clazz) !== undefined)
-  {
+  else if (getVariantIndex(clazz) !== undefined) {
     // It is an enum, but we deserialize into its variant directly
     // This means we should omit the variant index
     reader.readU8();
   }
 
-  if (structSchema.kind === "struct") {
+  if (structSchema instanceof StructKind) {
     const result = {};
-    for (const [fieldName, fieldType] of schema.get(clazz).fields) {
-      result[fieldName] = deserializeField(
+    for (const field of schema.get(clazz).fields) {
+      result[field.key] = deserializeField(
         schema,
-        fieldName,
-        fieldType,
+        field.key,
+        field.type,
         reader
       );
     }
     return Object.assign(new clazz(), result);
   }
 
-  if (structSchema.kind === "enum") {
-    if(idx === undefined)
+  /* if (structSchema.kind === "enum") {
+    if (idx === undefined)
       idx = reader.readU8();
 
     if (idx >= structSchema.values.length) {
@@ -248,17 +225,17 @@ function deserializeStruct(
     const [fieldName, fieldType] = structSchema.values[idx];
     const fieldValue = deserializeField(schema, fieldName, fieldType, reader);
     return new clazz({ [fieldName]: fieldValue });
-  }
+  } */
 
   throw new BorshError(
-    `Unexpected schema kind: ${structSchema.kind} for ${clazz.constructor.name}`
+    `Unexpected schema ${clazz.constructor.name}`
   );
 }
 
 /// Deserializes object from bytes using schema.
 export function deserialize<T>(
   schema: Schema,
-  classType: { new (args: any): T },
+  classType: { new(args: any): T },
   buffer: Buffer,
   Reader = BinaryReader
 ): T {
@@ -266,8 +243,7 @@ export function deserialize<T>(
   const result = deserializeStruct(schema, classType, reader);
   if (reader.offset < buffer.length) {
     throw new BorshError(
-      `Unexpected ${
-        buffer.length - reader.offset
+      `Unexpected ${buffer.length - reader.offset
       } bytes after deserialized data`
     );
   }
@@ -277,7 +253,7 @@ export function deserialize<T>(
 /// Deserializes object from bytes using schema, without checking the length read
 export function deserializeUnchecked<T>(
   schema: Schema,
-  classType: { new (args: any): T },
+  classType: { new(args: any): T },
   buffer: Buffer,
   Reader = BinaryReader
 ): T {

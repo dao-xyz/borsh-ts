@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
-    "lib": ["DOM", "ES6"],
+    "lib": [
+      "DOM",
+      "ES6"
+    ],
     "module": "commonjs",
     "target": "es6",
     "moduleResolution": "node",
@@ -16,8 +19,9 @@
     "experimentalDecorators": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true
-    
   },
-  "files": ["src/index.ts", "src/__tests__/schema.test.ts"]
+  "files": [
+    "src/index.ts",
+    "src/__tests__/index.test.ts"
+  ]
 }
-
