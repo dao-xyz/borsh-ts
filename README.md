@@ -190,22 +190,9 @@ class TestStruct {
     @field({ type: 'u8', index: 0 })
     public b: number;
 }
-
-const schema = generateSchemas([TestStruct]).get(TestStruct)
-expect(schema).toEqual({
-    fields: [
-        [
-            "b",
-            "u8",
-        ],
-        [
-            "a",
-            "u8",
-        ],
-    ],
-    kind: "struct",
-});
 ```
+
+This will make *b* serialized into the buffer before *a*.
 
 ## Inheritance
 Schema generation with class inheritance is not supported (yet)
