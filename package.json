@@ -1,8 +1,8 @@
 {
-  "name": "@solvei/borsh",
+  "name": "@westake/borsh",
   "version": "0.0.22",
   "readme": "README.md",
-  "homepage": "https://github.com/the-solvei/borsh-ts#README",
+  "homepage": "https://github.com/the-westake/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",
   "main": "index.js",
   "types": "index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/the-solvei/borsh-ts.git"
+    "url": "git+https://github.com/the-westake/borsh-ts.git"
   },
   "keywords": [
     "serializer",
@@ -30,10 +30,10 @@
     "consistency",
     "deterministic"
   ],
-  "author": "The Solvei",
+  "author": "The westake",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/the-solvei/borsh-ts/issues"
+    "url": "https://github.com/the-westake/borsh-ts/issues"
   },
   "devDependencies": {
     "@types/babel__core": "^7.1.2",
