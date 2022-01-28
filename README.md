@@ -1,8 +1,6 @@
 # Borsh TS 
-[![Project license](https://img.shields.io/badge/license-Apache2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Project license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![NPM version](https://img.shields.io/npm/v/@solvei/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
-[![Size on NPM](https://img.shields.io/bundlephobia/minzip/@solvei/borsh.svg?style=flat-square)](https://npmjs.com/@solvei/borsh)
+
+# Due to organisation name change, the project has moved [here](https://github.com/westake/borsh-ts)
 
 **Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects.
 
@@ -14,13 +12,13 @@ With this imlementation on can generate serialization/deserialization Schemas us
 ## Installation
 
 ```
-npm install @solvei/borsh
+npm install @westake/borsh
 ```
 or 
 ```
-yarn add @solvei/borsh
-
+yarn add @westake/borsh
 ```
+
 ## Examples of schema generation using decorators
 
 **Enum, variant at instruction "slot" 1.** 
