@@ -27,8 +27,8 @@ yarn add @westake/borsh
 ### Serializing an object
 *SomeClass* class is decorated using decorators explained later
 ```typescript
-const schemas = generateSchemas([Test])
-const value = new Test({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
+const schemas = generateSchemas([SomeClass])
+const value = new SomeClass({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
 
 // Serialize
 const buffer = serialize(schemas, value);
@@ -121,11 +121,11 @@ class TestStruct {
 }
 ```
 
-***Fixed size***
+***Fixed length***
 ```typescript
 class TestStruct {
   @field({ type: fixedArray('u8', 3) }) // Fixed array of length 3
-  public vec: number[];
+  public fixedLengthArray: number[];
 }
 ```
 
