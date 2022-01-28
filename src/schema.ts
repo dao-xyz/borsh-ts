@@ -49,14 +49,14 @@ export const vec = (type: FieldType): VecKind => {
 
 
 export class FixedArrayKind extends WrappedType {
-    size: number;
-    constructor(type: FieldType, size: number) {
+    length: number;
+    constructor(type: FieldType, length: number) {
         super(type)
-        this.size = size;
+        this.length = length;
     }
 }
-export const fixedArray = (type: FieldType, size: number): FixedArrayKind => {
-    return new FixedArrayKind(type, size)
+export const fixedArray = (type: FieldType, length: number): FixedArrayKind => {
+    return new FixedArrayKind(type, length)
 }
 
 export interface Field {

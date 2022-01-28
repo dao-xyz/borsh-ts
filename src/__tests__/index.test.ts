@@ -132,7 +132,7 @@ describe("arrays", () => {
     console.log(generatedSchemas);
   });
 
-  test("fixed array wrong size serialize", () => {
+  test("fixed array wrong length serialize", () => {
     class TestStruct {
       @field({ type: fixedArray("u8", 3) })
       public a: number[];
@@ -150,7 +150,7 @@ describe("arrays", () => {
     ).toThrowError();
   });
 
-  test("fixed array wrong size deserialize", () => {
+  test("fixed array wrong length deserialize", () => {
     class TestStruct {
       @field({ type: fixedArray("u8", 3) })
       public a: number[];

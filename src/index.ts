@@ -37,7 +37,7 @@ export function serializeField(
     } else if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
       let len = value.length;
       if (fieldType instanceof FixedArrayKind) {
-        if (fieldType.size != len) {
+        if (fieldType.length != len) {
           throw new BorshError(
             `Expecting array of length ${fieldType[0]}, but got ${value.length}`
           );
@@ -120,7 +120,7 @@ function deserializeField(
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
-      let len = fieldType instanceof FixedArrayKind ? fieldType.size : reader.readU32();
+      let len = fieldType instanceof FixedArrayKind ? fieldType.length : reader.readU32();
       let arr = new Array(len);
       for (let i = 0; i < len; i++) {
         arr[i] = deserializeField(schema, null, fieldType.elementType, reader);

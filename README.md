@@ -124,7 +124,7 @@ class TestStruct {
 ***Fixed size***
 ```typescript
 class TestStruct {
-  @field({ type: fixedArray('u8') })
+  @field({ type: fixedArray('u8', 3) }) // Fixed array of length 3
   public vec: number[];
 }
 ```
