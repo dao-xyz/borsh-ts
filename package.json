@@ -1,6 +1,6 @@
 {
   "name": "@westake/borsh",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "readme": "README.md",
   "homepage": "https://github.com/the-westake/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",
