@@ -1,8 +1,8 @@
 {
-  "name": "@westake/borsh",
-  "version": "1.0.2",
+  "name": "@s2g/borsh",
+  "version": "1.0.3",
   "readme": "README.md",
-  "homepage": "https://github.com/westake/borsh-ts#README",
+  "homepage": "https://github.com/s2gprotocol/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",
   "main": "index.js",
   "types": "index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/westake/borsh-ts.git"
+    "url": "git+https://github.com/s2gprotocol/borsh-ts.git"
   },
   "keywords": [
     "serializer",
@@ -30,10 +30,10 @@
     "consistency",
     "deterministic"
   ],
-  "author": "WeStake",
+  "author": "s2g.network",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/westake/borsh-ts/issues"
+    "url": "https://github.com/s2gprotocol/borsh-ts/issues"
   },
   "devDependencies": {
     "@types/babel__core": "^7.1.2",
