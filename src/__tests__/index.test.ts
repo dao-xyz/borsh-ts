@@ -275,6 +275,7 @@ describe("enum", () => {
       schemas,
       TestStruct,
       Buffer.from(serialized),
+      false,
       BinaryReader
     );
     expect(deserialied.enum).toBeInstanceOf(Enum1);
@@ -313,6 +314,7 @@ describe("enum", () => {
       schemas,
       TestStruct,
       Buffer.from(serialized),
+      false,
       BinaryReader
     );
     expect(deserialied.enum).toBeInstanceOf(Enum2);
@@ -440,6 +442,7 @@ describe("override", () => {
       schemas,
       TestStruct,
       Buffer.from(serialized),
+      false,
       BinaryReader
     );
     expect(deserialied.obj).toBeDefined();
@@ -482,6 +485,7 @@ describe("order", () => {
       schemas,
       TestStruct,
       Buffer.from(serialized),
+      false,
       BinaryReader
     );
     expect(deserialied).toBeDefined();
@@ -541,5 +545,27 @@ describe("order", () => {
       ],
     });
     expect(schema).toEqual(expectedResult);
+  });
+});
+
+describe("buffer", () => {
+  test("padding checked/unchecked", () => {
+    class TestStruct {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a?: number) {
+        this.a = a;
+      }
+    }
+
+    const bytes = Uint8Array.from([1, 0]); // has an extra 0
+    const schemas = generateSchemas([TestStruct]);
+    expect(() =>
+      deserialize(schemas, TestStruct, Buffer.from(bytes), false)
+    ).toThrowError(BorshError);
+    expect(
+      deserialize(schemas, TestStruct, Buffer.from(bytes), true).a
+    ).toEqual(1);
   });
 });

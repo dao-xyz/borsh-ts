@@ -170,8 +170,7 @@ const serialized = serialize(schemas, new TestStruct({ a: 2, b: 3 }));
 const deserialied = deserialize(
     schemas,
     TestStruct,
-    Buffer.from(serialized),
-    BinaryReader
+    Buffer.from(serialized)
 );
 expect(deserialied.obj).toBeDefined();
 expect(deserialied.obj.a).toEqual(5);

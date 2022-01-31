@@ -208,16 +208,25 @@ function deserializeStruct(
   );
 }
 
-/// Deserializes object from bytes using schema.
+/**
+ * /// Deserializes object from bytes using schema.
+ * @param schema, schemas generated from generateSchemas([ClassA, ClassB..])
+ * @param classType, target Class
+ * @param buffer, data
+ * @param unchecked, if true then any remaining bytes after deserialization will be ignored
+ * @param Reader, optional custom reader
+ * @returns 
+ */
 export function deserialize<T>(
   schema: Schema,
   classType: { new(args: any): T },
   buffer: Buffer,
+  unchecked: boolean = false,
   Reader = BinaryReader
 ): T {
   const reader = new Reader(buffer);
   const result = deserializeStruct(schema, classType, reader);
-  if (reader.offset < buffer.length) {
+  if (!unchecked && reader.offset < buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader.offset
       } bytes after deserialized data`
