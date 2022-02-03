@@ -1,16 +1,14 @@
 import BN from "bn.js";
 import { BinaryReader } from "../binary";
 import { BorshError } from "../error";
-import { deserialize, serialize } from "../index";
 import {
+  deserialize,
+  serialize,
   generateSchemas,
-  StructKind,
   field,
   variant,
-  vec,
-  option,
-  fixedArray,
-} from "../schema";
+} from "../index";
+import { StructKind, vec, option, fixedArray } from "../types";
 
 describe("struct", () => {
   test("multifield", () => {

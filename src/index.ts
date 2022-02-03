@@ -1,11 +1,14 @@
 import bs58 from "bs58";
-import { FixedArrayKind, getVariantIndex, OptionKind, Schema, StructKind, VecKind } from "./schema"
+import { FixedArrayKind, OptionKind, Schema, Field, StructKind, VecKind, extendsClass, SimpleField, CustomField } from "./types"
 import { BorshError } from "./error"
 import { BinaryWriter, BinaryReader } from "./binary"
-import { extendsClass } from "./utils";
-
-export * from './schema';
+import { OverrideType } from "./types";
+import "reflect-metadata";
 export * from './binary';
+
+const STRUCT_META_DATA_SYMBOL = '__borsh_struct_metadata__';
+
+
 
 export function baseEncode(value: Uint8Array | string): string {
   if (typeof value === "string") {
@@ -20,10 +23,6 @@ export function baseDecode(value: string): Buffer {
 
 function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
-}
-export interface OverrideType<T> {
-  serialize: (arg: T, writer: BinaryWriter) => void,
-  deserialize: (reader: BinaryReader) => T
 }
 
 export function serializeField(
@@ -247,4 +246,145 @@ export function deserializeUnchecked<T>(
 ): T {
   const reader = new Reader(buffer);
   return deserializeStruct(schema, classType, reader);
+}
+
+
+
+// 
+
+const structMetaDataKey = (constructorName: string) => {
+  return STRUCT_META_DATA_SYMBOL + constructorName;
+}
+
+
+/**
+* 
+* @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
+* @returns Schema decorator function for classes
+*/
+export const variant = (index: number) => {
+  return (ctor: Function) => {
+    // Create a custom serialization, for enum by prepend instruction index
+    ctor.prototype.borshSerialize = function (schema: Schema, writer: BinaryWriter) {
+      writer.writeU8(index);
+
+      // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
+      const structSchema: StructKind = schema.get(ctor)
+      for (const field of structSchema.fields) {
+        serializeField(schema, field.key, this[field.key], field.type, writer);
+      }
+    }
+    ctor.prototype._borsh_variant_index = function () {
+      return index; // creates a function that returns the variant index on the class
+    }
+  }
+}
+
+export const getVariantIndex = (clazz: any): number | undefined => {
+  if (clazz.prototype._borsh_variant_index)
+    return clazz.prototype._borsh_variant_index()
+  return undefined
+}
+
+
+/**
+* @param properties, the properties of the field mapping to schema
+* @returns 
+*/
+export function field(properties: SimpleField | CustomField<any>) {
+  return (target: {} | any, name?: PropertyKey): any => {
+    const metaDataKey = structMetaDataKey(target.constructor.name);
+    let schema: StructKind = Reflect.getMetadata(metaDataKey, target.constructor); // Assume StructKind already exist
+    const key = name.toString();
+    if (!schema) {
+      schema = new StructKind()
+    }
+    let field: Field = undefined;
+    if ((properties as SimpleField)["type"] != undefined) {
+      field = {
+        key,
+        type: (properties as SimpleField)["type"]
+      }
+    }
+    else {
+      field = {
+        key,
+        type: properties as CustomField<any>,
+      }
+    }
+
+    if (properties.index === undefined) {
+      schema.fields.push(field) // add to the end. This will make property decorator execution order define field order
+
+    }
+    else {
+
+      if (schema.fields[properties.index]) {
+        throw new BorshError("Multiple fields defined at the same index: " + properties.index + ", class: " + target.constructor.name)
+      }
+      if (properties.index >= schema.fields.length) {
+        resize(schema.fields, properties.index + 1, undefined)
+
+      }
+      schema.fields[properties.index] = field
+    }
+
+    Reflect.defineMetadata(metaDataKey, schema, target.constructor);
+
+  };
+}
+
+
+
+/**
+* @param clazzes 
+* @param validate, run validation?
+* @returns Schema map
+*/
+export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
+  let ret = new Map<any, StructKind>()
+  let dependencies = new Set()
+  clazzes.forEach((clazz) => {
+    let schema = (Reflect.getMetadata(structMetaDataKey(clazz.name), clazz) as StructKind)
+    if (schema) {
+      if (validate) {
+        validateSchema(schema, clazz)
+      }
+      ret.set(clazz, schema);
+      schema.getDependencies().forEach((depenency) => {
+        dependencies.add(depenency);
+      })
+    }
+  })
+
+  // Generate schemas for nested types
+  dependencies.forEach((dependency) => {
+    if (!ret.has(dependency)) {
+      const dependencySchema = generateSchemas([dependency], validate)
+      dependencySchema.forEach((value, key) => {
+        ret.set(key, value)
+      })
+    }
+  })
+  return new Map(ret);
+}
+
+
+const validateSchema = (structSchema: StructKind, clazz: any) => {
+  if (!structSchema.fields) {
+    throw new BorshError("Missing fields for class: " + clazz.name);
+  }
+  structSchema.fields.forEach((field) => {
+    if (!field) {
+      throw new BorshError("Field is missing definition, most likely due to field indexing with missing indices")
+    }
+  })
+}
+
+
+
+const resize = (arr: Array<any>, newSize: number, defaultValue: any) => {
+  while (newSize > arr.length)
+    arr.push(defaultValue);
+  arr.length = newSize;
 }
