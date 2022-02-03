@@ -191,7 +191,7 @@ describe("arrays", () => {
     }
 
     const generatedSchemas = generateSchemas([TestStruct]);
-    let arr = [
+    const arr = [
       new Element({ a: 1 }),
       new Element({ a: 2 }),
       new Element({ a: 3 }),
@@ -423,7 +423,7 @@ describe("override", () => {
           writer.writeU16(value.a + value.b);
         },
         deserialize: (reader): ComplexObject => {
-          let value = reader.readU16();
+          const value = reader.readU16();
           return {
             a: value,
             b: value * 2,

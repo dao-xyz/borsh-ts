@@ -4,6 +4,9 @@ import { BorshError } from "./error"
 import { BinaryWriter, BinaryReader } from "./binary"
 import { extendsClass } from "./utils";
 
+export * from './schema';
+export * from './binary';
+
 export function baseEncode(value: Uint8Array | string): string {
   if (typeof value === "string") {
     value = Buffer.from(value, "utf8");
@@ -15,11 +18,11 @@ export function baseDecode(value: string): Buffer {
   return Buffer.from(bs58.decode(value));
 }
 
-function capitalizeFirstLetter(string) {
+function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 export interface OverrideType<T> {
-  serialize: (T, writer: BinaryWriter) => void,
+  serialize: (arg: T, writer: BinaryWriter) => void,
   deserialize: (reader: BinaryReader) => T
 }
 
@@ -39,7 +42,7 @@ export function serializeField(
       if (fieldType instanceof FixedArrayKind) {
         if (fieldType.length != len) {
           throw new BorshError(
-            `Expecting array of length ${fieldType[0]}, but got ${value.length}`
+            `Expecting array of length ${(fieldType as any)[0]}, but got ${value.length}`
           );
         }
       }
@@ -116,7 +119,7 @@ function deserializeField(
 ): any {
   try {
     if (typeof fieldType === "string") {
-      return reader[`read${capitalizeFirstLetter(fieldType)}`]();
+      return (reader as any)[`read${capitalizeFirstLetter(fieldType)}`]();
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
@@ -192,7 +195,7 @@ function deserializeStruct(
   }
 
   if (structSchema instanceof StructKind) {
-    const result = {};
+    const result: { [key: string]: any } = {};
     for (const field of schema.get(clazz).fields) {
       result[field.key] = deserializeField(
         schema,

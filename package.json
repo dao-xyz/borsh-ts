@@ -1,43 +1,41 @@
 {
   "name": "@s2g/borsh",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "readme": "README.md",
   "homepage": "https://github.com/s2gprotocol/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "author": "s2g.network",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.mjs",
+  "types": "lib/esm/index.d.ts",
+  "exports": {
+    "import": "./lib/esm/index.mjs",
+    "require": "./lib/cjs/index.js"
+  },
+  "files": [
+    "lib",
+    "src",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "yarn build:dev",
-    "build:dev": "tsc -p ./tsconfig.json",
-    "build:prod": "rimraf dist && tsc -p ./tsconfig.prod.json && cp package.json dist/ && cp README.md dist/ && cp LICENSE-APACHE dist/ && cp LICENSE-MIT.txt dist/ ",
-    "test": "jest test --runInBand",
-    "fuzz": "jsfuzz src/test/fuzz/borsh-roundtrip.js src/test/fuzz/corpus/",
-    "pretest": "yarn build",
+    "clean": "rimraf lib",
+    "build": "yarn clean && tsc -p tsconfig.json; tsc-esm -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "postbuild": "echo '{\"type\":\"commonjs\"}' | npx json > lib/cjs/package.json && echo '{\"type\":\"module\"} ' | npx json > lib/esm/package.json",
+    "test": "node ./node_modules/.bin/jest test  -c  ./jest.config.cjs",
     "lint": "eslint src/**/*.ts",
     "pretty": "prettier --write src/**/*.ts package.json",
     "pretty:check": "yarn prettier --loglevel error --check  src/**/*.ts package.json",
     "fix": "eslint src/**/*.ts --fix"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/s2gprotocol/borsh-ts.git"
-  },
-  "keywords": [
-    "serializer",
-    "binary",
-    "serializer",
-    "deserializer",
-    "consistency",
-    "deterministic"
-  ],
-  "author": "s2g.network",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/s2gprotocol/borsh-ts/issues"
-  },
   "devDependencies": {
-    "@types/babel__core": "^7.1.2",
-    "@types/babel__template": "^7.0.2",
+    "@types/bs58": "^4.0.1",
+    "@types/text-encoding-utf-8": "^1.0.2",
     "@types/bn.js": "^5.1.0",
     "@types/jest": "^27.0.2",
     "@types/node": "^12.7.3",
@@ -51,7 +49,8 @@
     "prettier": "^2.4.1",
     "rimraf": "^3.0.2",
     "ts-jest": "^27.0.7",
-    "typescript": "^3.6.2"
+    "typescript": "^4.4.4",
+    "typescript-esm": "^2.0.0"
   },
   "dependencies": {
     "bn.js": "^5.2.0",

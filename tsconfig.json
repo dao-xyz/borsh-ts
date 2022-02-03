@@ -1,27 +1,35 @@
 {
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
   "compilerOptions": {
-    "esModuleInterop": true,
     "lib": [
-      "DOM",
-      "ES6"
-    ],
-    "module": "commonjs",
-    "target": "es6",
-    "moduleResolution": "node",
-    "outDir": "./dist",
+      "es2019",
+      "DOM"
+    ], /* Specify a set of bundled library declaration files that describe the target runtime environment. */
+    "rootDir": "src", /* Specify the root folder within your source files. */
+    "esModuleInterop": true, /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables `allowSyntheticDefaultImports` for type compatibility. */
+    "forceConsistentCasingInFileNames": true, /* Ensure that casing is correct in imports. */
+    /* Type Checking */
+    "noImplicitAny": true, /* Enable error reporting for expressions and declarations with an implied `any` type.. */
+    "skipLibCheck": true, /* Skip type checking all .d.ts files. */
+    "target": "es2019",
+    "module": "esnext",
+    "outDir": "lib/esm",
     "declaration": true,
-    "preserveSymlinks": true,
-    "preserveWatchOutput": true,
-    "pretty": true,
-    "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": false,
+    "sourceMap": true,
+    "noEmitOnError": true,
+    "stripInternal": true,
+    "moduleResolution": "node",
+    "jsx": "react",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "experimentalDecorators": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true
-  },
-  "files": [
-    "src/index.ts",
-    "src/__tests__/index.test.ts"
-  ]
+    "typeRoots": [
+      "node_modules/@types"
+    ]
+  }
 }

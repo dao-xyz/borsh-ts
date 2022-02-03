@@ -138,10 +138,10 @@ export function field(properties: SimpleField | CustomField<any>) {
             schema = new StructKind()
         }
         let field: Field = undefined;
-        if (properties["type"] != undefined) {
+        if ((properties as SimpleField)["type"] != undefined) {
             field = {
                 key,
-                type: properties["type"]
+                type: (properties as SimpleField)["type"]
             }
         }
         else {

@@ -17,4 +17,5 @@ yarn.lock
 .npmrc
 
 dist/
+lib
 
