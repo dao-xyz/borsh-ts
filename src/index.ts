@@ -5,6 +5,7 @@ import { BinaryWriter, BinaryReader } from "./binary"
 import { OverrideType } from "./types";
 import "reflect-metadata";
 export * from './binary';
+export * from './types';
 
 const STRUCT_META_DATA_SYMBOL = '__borsh_struct_metadata__';
 
