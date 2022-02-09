@@ -271,9 +271,12 @@ export const variant = (index: number) => {
 
       // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
       const structSchema: StructKind = schema.get(ctor)
-      for (const field of structSchema.fields) {
-        serializeField(schema, field.key, this[field.key], field.type, writer);
-      }
+
+      // If Schema has fields, "structSchema" will be non empty and "fields" will exist
+      if (structSchema?.fields)
+        for (const field of structSchema.fields) {
+          serializeField(schema, field.key, this[field.key], field.type, writer);
+        }
     }
     ctor.prototype._borsh_variant_index = function () {
       return index; // creates a function that returns the variant index on the class

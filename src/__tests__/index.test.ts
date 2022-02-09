@@ -228,6 +228,17 @@ describe("enum", () => {
     expect(deserialized.a).toEqual(3);
   });
 
+  test("empty", () => {
+    @variant(1)
+    class TestEnum {
+      constructor() {}
+    }
+    const instance = new TestEnum();
+    const generatedSchemas = generateSchemas([TestEnum]);
+    const buf = serialize(generatedSchemas, instance);
+    expect(buf).toEqual(Buffer.from([1]));
+  });
+
   test("enum field serialization/deserialization", () => {
     class Super {}
 
