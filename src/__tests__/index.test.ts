@@ -329,6 +329,56 @@ describe("enum", () => {
     expect(deserialied.enum).toBeInstanceOf(Enum2);
     expect((deserialied.enum as Enum2).a).toEqual(3);
   });
+
+  test("enum variant array", () => {
+    class Super {}
+
+    @variant([1, 2, 3])
+    class Enum0 extends Super {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number) {
+        super();
+        this.a = a;
+      }
+    }
+
+    @variant([1, 2, 4])
+    class Enum1 extends Super {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number) {
+        super();
+        this.a = a;
+      }
+    }
+
+    class TestStruct {
+      @field({ type: Super })
+      public enum: Super;
+
+      constructor(value: Super) {
+        this.enum = value;
+      }
+    }
+    const instance = new TestStruct(new Enum1(5));
+    const schemas = generateSchemas([Enum0, Enum1, TestStruct]);
+    expect(schemas.get(Enum1)).toBeDefined();
+    expect(schemas.get(TestStruct)).toBeDefined();
+    const serialized = serialize(schemas, instance);
+    expect(serialized).toEqual(Buffer.from([1, 2, 4, 5]));
+    const deserialied = deserialize(
+      schemas,
+      TestStruct,
+      Buffer.from(serialized),
+      false,
+      BinaryReader
+    );
+    expect(deserialied.enum).toBeInstanceOf(Enum1);
+    expect((deserialied.enum as Enum0).a).toEqual(5);
+  });
 });
 
 describe("option", () => {

@@ -1,6 +1,6 @@
 {
   "name": "@s2g/borsh",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "readme": "README.md",
   "homepage": "https://github.com/s2gprotocol/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",

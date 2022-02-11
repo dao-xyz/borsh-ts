@@ -170,7 +170,7 @@ function deserializeStruct(
     // We find the deserialization schema from one of the subclasses
 
     // it must be an enum
-    idx = reader.readU8();
+    idx = [reader.readU8()];
 
     // Try polymorphic deserialziation (i.e.  get all subclasses and find best
     // class this can be deserialized to)
@@ -179,9 +179,28 @@ function deserializeStruct(
     for (const actualClazz of schema.keys()) {
       if (extendsClass(actualClazz, clazz)) {
         const variantIndex = getVariantIndex(actualClazz);
-        if (variantIndex !== undefined && variantIndex === idx) {
-          clazz = actualClazz;
-          structSchema = schema.get(clazz);
+        if (variantIndex !== undefined) {
+
+          if (typeof variantIndex === 'number') {
+            if (variantIndex == idx[0]) {
+              clazz = actualClazz;
+              structSchema = schema.get(clazz);
+              break;
+            }
+          }
+          else // variant is array, check all values
+          {
+            while (idx.length < variantIndex.length) {
+              idx.push(reader.readU8());
+            }
+            // Compare variants
+            if (idx.length === variantIndex.length && idx.every((value, index) => value === variantIndex[index])) {
+              clazz = actualClazz;
+              structSchema = schema.get(clazz);
+              break;
+            }
+
+          }
         }
       }
     }
@@ -191,7 +210,16 @@ function deserializeStruct(
   else if (getVariantIndex(clazz) !== undefined) {
     // It is an enum, but we deserialize into its variant directly
     // This means we should omit the variant index
-    reader.readU8();
+    let index = getVariantIndex(clazz);
+    if (typeof index === 'number') {
+      reader.readU8();
+    }
+    else {
+      for (const _ of index) {
+        reader.readU8();
+      }
+    }
+
   }
 
   if (structSchema instanceof StructKind) {
@@ -263,11 +291,18 @@ const structMetaDataKey = (constructorName: string) => {
 * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
 * @returns Schema decorator function for classes
 */
-export const variant = (index: number) => {
+export const variant = (index: number | number[]) => {
   return (ctor: Function) => {
     // Create a custom serialization, for enum by prepend instruction index
     ctor.prototype.borshSerialize = function (schema: Schema, writer: BinaryWriter) {
-      writer.writeU8(index);
+      if (typeof index === 'number') {
+        writer.writeU8(index);
+      }
+      else {
+        index.forEach((i) => {
+          writer.writeU8(i)
+        })
+      }
 
       // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
       const structSchema: StructKind = schema.get(ctor)
@@ -284,7 +319,7 @@ export const variant = (index: number) => {
   }
 }
 
-export const getVariantIndex = (clazz: any): number | undefined => {
+export const getVariantIndex = (clazz: any): number | number[] | undefined => {
   if (clazz.prototype._borsh_variant_index)
     return clazz.prototype._borsh_variant_index()
   return undefined
