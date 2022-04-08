@@ -30,7 +30,7 @@
     "test": "node ./node_modules/.bin/jest test  -c  ./jest.config.cjs",
     "lint": "eslint src/**/*.ts",
     "pretty": "prettier --write src/**/*.ts package.json",
-    "pretty:check": "yarn prettier --loglevel error --check  src/**/*.ts package.json",
+    "pretty:check": "prettier --write src/**/*.ts package.json --check",
     "fix": "eslint src/**/*.ts --fix"
   },
   "devDependencies": {
