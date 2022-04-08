@@ -12,6 +12,8 @@ import { StructKind, vec, option, fixedArray } from "../types";
 
 describe("struct", () => {
   test("multifield", () => {
+
+
     class TestStruct {
       @field({ type: "u8" })
       public a: number;
@@ -26,6 +28,7 @@ describe("struct", () => {
         }
       }
     }
+
     const generatedSchemas = generateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
@@ -79,6 +82,48 @@ describe("struct", () => {
       })
     );
   });
+});
+
+
+describe("numeric", () => {
+  test("signed", () => {
+
+
+    class TestStruct {
+      @field({ type: 'i8' })
+      public a: number;
+
+      @field({ type: 'i128' })
+      public b: BN;
+
+      constructor(properties?: { a: number; b: BN }) {
+        if (properties) {
+          this.a = properties.a;
+          this.b = properties.b;
+        }
+      }
+    }
+
+    const generatedSchemas = generateSchemas([TestStruct]);
+    const i8Min = -128;
+    const i128Min = new BN("-170141183460469231731687303715884105728");
+    let ax = i128Min.isNeg();
+    const instance = new TestStruct({ a: i8Min, b: i128Min });
+    const buf = serialize(generatedSchemas, instance);
+    expect(buf).toEqual(Buffer.from([128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128]));
+    const deserialized = deserialize(
+      generatedSchemas,
+      TestStruct,
+      Buffer.from(buf)
+    );
+    expect(deserialized.a).toEqual(-128);
+    // expect(deserialized.b.toString()).toEqual("-170141183460469231731687303715884105728");
+    let bx = deserialized.b.isNeg();
+
+    const bufAgain = serialize(generatedSchemas, deserialized);
+    expect(bufAgain).toEqual(Buffer.from([128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128]));
+  });
+
 });
 
 describe("arrays", () => {
@@ -231,7 +276,7 @@ describe("enum", () => {
   test("empty", () => {
     @variant(1)
     class TestEnum {
-      constructor() {}
+      constructor() { }
     }
     const instance = new TestEnum();
     const generatedSchemas = generateSchemas([TestEnum]);
@@ -240,7 +285,7 @@ describe("enum", () => {
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super {}
+    class Super { }
 
     @variant(0)
     class Enum0 extends Super {
@@ -292,7 +337,7 @@ describe("enum", () => {
   });
 
   test("wrapped enum", () => {
-    class Super {}
+    class Super { }
 
     @variant(2)
     class Enum2 extends Super {
@@ -331,7 +376,7 @@ describe("enum", () => {
   });
 
   test("enum variant array", () => {
-    class Super {}
+    class Super { }
 
     @variant([1, 2, 3])
     class Enum0 extends Super {

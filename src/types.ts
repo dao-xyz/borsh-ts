@@ -29,7 +29,7 @@ export interface OverrideType<T> {
 }
 
 
-export type FieldType = 'u8' | 'u16' | 'u32' | 'u64' | 'u128' | 'u256' | 'u512' | 'f32' | 'f64' | 'String' | Constructor<any> | WrappedType
+export type FieldType = 'u8' | 'u16' | 'u32' | 'u64' | 'u128' | 'u256' | 'u512' | 'f32' | 'f64' | 'i8' | 'i16' | 'i32' | 'i64' | 'i128' | 'String' | Constructor<any> | WrappedType
 export type Schema = Map<Function, StructKind>;
 export type SimpleField = { type: FieldType, index?: number };
 export interface CustomField<T> extends OverrideType<T> {

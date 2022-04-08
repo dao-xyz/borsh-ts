@@ -6,9 +6,9 @@ import { BorshError } from "./error";
 import * as encoding from "text-encoding-utf-8";
 
 const ResolvedTextDecoder =
-  typeof TextDecoder !== "function"
-    ? encoding.TextDecoder
-    : TextDecoder;
+    typeof TextDecoder !== "function"
+        ? encoding.TextDecoder
+        : TextDecoder;
 const textDecoder = new ResolvedTextDecoder("utf-8", { fatal: true });
 
 /// Binary encoder.
@@ -63,6 +63,34 @@ export class BinaryWriter {
     public writeU512(value: number | BN) {
         this.maybeResize();
         this.writeBuffer(Buffer.from(new BN(value).toArray("le", 64)));
+    }
+
+    public writeI8(value: number) {
+        this.maybeResize();
+        this.buf.writeInt8(value, this.length);
+        this.length += 1;
+    }
+
+    public writeI16(value: number) {
+        this.maybeResize();
+        this.buf.writeInt16LE(value, this.length);
+        this.length += 2;
+    }
+
+    public writeI32(value: number) {
+        this.maybeResize();
+        this.buf.writeInt32LE(value, this.length);
+        this.length += 4;
+    }
+
+    public writeI64(value: number | BN) {
+        this.maybeResize();
+        this.writeBuffer(Buffer.from(new BN(value).toArray("le", 8)));
+    }
+
+    public writeI128(value: number | BN) {
+        this.maybeResize();
+        this.writeBuffer(Buffer.from(new BN(value).toArray("le", 16)));
     }
 
     private writeBuffer(buffer: Buffer) {
@@ -174,6 +202,40 @@ export class BinaryReader {
     @handlingRangeError
     readU512(): BN {
         const buf = this.readBuffer(64);
+        return new BN(buf, "le");
+    }
+
+
+    @handlingRangeError
+    readI8(): number {
+        const value = this.buf.readInt8(this.offset);
+        this.offset += 1;
+        return value;
+    }
+
+    @handlingRangeError
+    readI16(): number {
+        const value = this.buf.readInt16LE(this.offset);
+        this.offset += 2;
+        return value;
+    }
+
+    @handlingRangeError
+    readI32(): number {
+        const value = this.buf.readInt32LE(this.offset);
+        this.offset += 4;
+        return value;
+    }
+
+    @handlingRangeError
+    readI64(): BN {
+        const buf = this.readBuffer(8);
+        return new BN(buf, "le");
+    }
+
+    @handlingRangeError
+    readI128(): BN {
+        const buf = this.readBuffer(16);
         return new BN(buf, "le");
     }
 
