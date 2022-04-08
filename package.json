@@ -1,6 +1,6 @@
 {
   "name": "@s2g/borsh",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "readme": "README.md",
   "homepage": "https://github.com/s2gprotocol/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing",
@@ -34,11 +34,11 @@
     "fix": "eslint src/**/*.ts --fix"
   },
   "devDependencies": {
-    "@types/bs58": "^4.0.1",
-    "@types/text-encoding-utf-8": "^1.0.2",
     "@types/bn.js": "^5.1.0",
+    "@types/bs58": "^4.0.1",
     "@types/jest": "^27.0.2",
     "@types/node": "^12.7.3",
+    "@types/text-encoding-utf-8": "^1.0.2",
     "@typescript-eslint/eslint-plugin": "^2.18.0",
     "@typescript-eslint/parser": "^2.18.0",
     "bs58": "^4.0.0",

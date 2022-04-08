@@ -6,9 +6,9 @@ import { BorshError } from "./error";
 import * as encoding from "text-encoding-utf-8";
 
 const ResolvedTextDecoder =
-  typeof TextDecoder !== "function"
-    ? encoding.TextDecoder
-    : TextDecoder;
+    typeof TextDecoder !== "function"
+        ? encoding.TextDecoder
+        : TextDecoder;
 const textDecoder = new ResolvedTextDecoder("utf-8", { fatal: true });
 
 /// Binary encoder.
@@ -25,6 +25,13 @@ export class BinaryWriter {
         if (this.buf.length < 16 + this.length) {
             this.buf = Buffer.concat([this.buf, Buffer.alloc(INITIAL_LENGTH)]);
         }
+    }
+
+
+    public writeBool(value: boolean) {
+        this.maybeResize();
+        this.buf.writeUInt8(value ? 1 : 0, this.length);
+        this.length += 1;
     }
 
     public writeU8(value: number) {
@@ -130,6 +137,13 @@ export class BinaryReader {
     public constructor(buf: Buffer) {
         this.buf = buf;
         this.offset = 0;
+    }
+
+    @handlingRangeError
+    readBool(): boolean {
+        const value = this.buf.readUInt8(this.offset);
+        this.offset += 1;
+        return value ? true : false;
     }
 
     @handlingRangeError

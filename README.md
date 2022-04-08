@@ -133,8 +133,7 @@ class TestStruct {
 ```typescript
 class TestStruct {
   @field({ type: option('u8') })
-  public a: number;
-
+  public a: number | undefined;
 }
 ```
 
