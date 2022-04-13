@@ -33,7 +33,7 @@ import {
   field,
   variant,
   vec,
-} from "s2g/borsh";
+} from "@s2g/borsh";
 
 class SomeClass 
 {
