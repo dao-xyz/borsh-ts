@@ -4,7 +4,7 @@ import { BorshError } from "../error";
 import {
   deserialize,
   serialize,
-  validateSchemas,
+  validate,
   field,
   variant,
   getSchema,
@@ -27,7 +27,7 @@ describe("struct", () => {
         }
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -63,7 +63,7 @@ describe("struct", () => {
       public a: InnerStruct;
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(getSchema(TestStruct)).toEqual(
       new StructKind({
         fields: [{ key: "a", type: InnerStruct }],
@@ -88,7 +88,7 @@ describe("struct", () => {
       public c: number;
     }
 
-    let schema = validateSchemas([TestStruct]).get(TestStruct);
+    let schema = validate([TestStruct]).get(TestStruct);
     expect(schema.fields.length).toEqual(2);
     expect(schema.fields[0].key).toEqual("a");
     expect(schema.fields[1].key).toEqual("c");
@@ -111,7 +111,7 @@ describe("bool", () => {
         }
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -150,7 +150,7 @@ describe("arrays", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
     expect(buf).toEqual(Buffer.from([3, 0, 0, 0, 1, 2, 3]));
     const deserialized = deserialize(Buffer.from(buf), TestStruct);
@@ -169,7 +169,7 @@ describe("arrays", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
     expect(buf).toEqual(Buffer.from([1, 2, 3]));
     const deserialized = deserialize(Buffer.from(buf), TestStruct);
@@ -188,7 +188,7 @@ describe("arrays", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(() => serialize(new TestStruct({ a: [1, 2] }))).toThrowError();
   });
 
@@ -203,7 +203,7 @@ describe("arrays", () => {
         }
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(() => deserialize(Buffer.from([1, 2]), TestStruct)).toThrowError();
   });
 
@@ -230,7 +230,7 @@ describe("arrays", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const arr = [
       new Element({ a: 1 }),
       new Element({ a: 2 }),
@@ -255,7 +255,7 @@ describe("enum", () => {
       }
     }
     const instance = new TestEnum(3);
-    validateSchemas([TestEnum]);
+    validate([TestEnum]);
     const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1, 3]));
     const deserialized = deserialize(Buffer.from(buf), TestEnum);
@@ -264,9 +264,9 @@ describe("enum", () => {
 
   test("empty", () => {
     @variant(1)
-    class TestEnum {}
+    class TestEnum { }
     const instance = new TestEnum();
-    validateSchemas([TestEnum]);
+    validate([TestEnum]);
     const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1]));
   });
@@ -288,13 +288,13 @@ describe("enum", () => {
         this.variant = variant;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(getSchema(TestStruct)).toBeDefined();
     expect(getSchema(ImplementationByVariant)).toBeDefined();
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super {}
+    class Super { }
 
     @variant(0)
     class Enum0 extends Super {
@@ -327,7 +327,7 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum1(4));
-    validateSchemas([Enum0, Enum1, TestStruct]);
+    validate([Enum0, Enum1, TestStruct]);
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
@@ -345,7 +345,7 @@ describe("enum", () => {
   });
 
   test("wrapped enum", () => {
-    class Super {}
+    class Super { }
 
     @variant(2)
     class Enum2 extends Super {
@@ -367,7 +367,7 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum2(3));
-    validateSchemas([Enum2, TestStruct]);
+    validate([Enum2, TestStruct]);
     expect(getSchema(Enum2)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
@@ -383,7 +383,7 @@ describe("enum", () => {
   });
 
   test("enum variant array", () => {
-    class Super {}
+    class Super { }
 
     @variant([1, 2, 3])
     class Enum0 extends Super {
@@ -416,7 +416,7 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum1(5));
-    validateSchemas([Enum0, Enum1, TestStruct]);
+    validate([Enum0, Enum1, TestStruct]);
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
@@ -441,7 +441,7 @@ describe("option", () => {
         this.a = a;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -477,7 +477,7 @@ describe("option", () => {
         this.a = a;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -527,7 +527,7 @@ describe("override", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const serialized = serialize(new TestStruct({ a: 2, b: 3 }));
     const deserialied = deserialize(
       Buffer.from(serialized),
@@ -555,7 +555,7 @@ describe("order", () => {
         this.b = b;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -588,7 +588,7 @@ describe("order", () => {
       public a: number;
     }
     const thrower = (): void => {
-      validateSchemas([TestStruct]);
+      validate([TestStruct]);
     };
 
     // Error is thrown since 1 field with index 1 is undefined behaviour
@@ -604,7 +604,7 @@ describe("order", () => {
       public b: number;
     }
     const thrower = (): void => {
-      validateSchemas([TestStruct]);
+      validate([TestStruct]);
     };
 
     // Error is thrown since missing field with index 1
@@ -620,7 +620,7 @@ describe("order", () => {
       @field({ type: "u8" })
       public b: number;
     }
-    const schema: StructKind = validateSchemas([TestStruct]).get(TestStruct);
+    const schema: StructKind = validate([TestStruct]).get(TestStruct);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -649,7 +649,7 @@ describe("Validation", () => {
     }
 
     const bytes = Uint8Array.from([1, 0]); // has an extra 0
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(() =>
       deserialize(Buffer.from(bytes), TestStruct, false)
     ).toThrowError(BorshError);
@@ -672,11 +672,11 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
-    expect(() => validateSchemas([TestStruct])).toThrowError(BorshError);
+    expect(() => validate([TestStruct])).toThrowError(BorshError);
   });
 
   test("missing variant", () => {
-    class Super {}
+    class Super { }
 
     @variant(0)
     class Enum0 extends Super {
@@ -692,14 +692,14 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     expect(getSchema(Super)).toBeUndefined();
   });
 
   test("missing variant one off", () => {
-    class Super {}
+    class Super { }
     @variant(0)
     class Enum0 extends Super {
       constructor() {
@@ -722,7 +722,7 @@ describe("Validation", () => {
       }
     }
 
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
@@ -746,6 +746,6 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
-    validateSchemas([TestStruct]);
+    validate([TestStruct]);
   });
 });

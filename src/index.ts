@@ -419,11 +419,11 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @param validate, run validation?
  * @returns Schema map
  */
-export const validateSchemas = (clazzes: any[]) => {
-  return validateSchemasIterator(clazzes, new Set());
+export const validate = (clazzes: any[]) => {
+  return validateIterator(clazzes, new Set());
 };
 
-const validateSchemasIterator = (clazzes: any[], visited: Set<string>) => {
+const validateIterator = (clazzes: any[], visited: Set<string>) => {
   let ret = new Map<any, StructKind>();
   let dependencies = new Set<Function>();
   clazzes.forEach((clazz) => {
@@ -459,7 +459,7 @@ const validateSchemasIterator = (clazzes: any[], visited: Set<string>) => {
   // Generate schemas for nested types
   filteredDependencies.forEach((dependency) => {
     if (!ret.has(dependency)) {
-      const dependencySchema = validateSchemasIterator([dependency], visited);
+      const dependencySchema = validateIterator([dependency], visited);
       dependencySchema.forEach((value, key) => {
         ret.set(key, value);
       });

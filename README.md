@@ -218,7 +218,7 @@ This will make *b* serialized into the buffer before *a*.
 
 You can validate that classes have been decorated correctly: 
 ```typescript
-validateSchemas([TestStruct])
+validate([TestStruct])
 ```
 
 ## Inheritance
