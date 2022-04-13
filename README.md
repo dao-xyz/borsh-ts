@@ -214,6 +214,13 @@ class TestStruct {
 
 This will make *b* serialized into the buffer before *a*.
 
+## Validation
+
+You can validate that classes have been decorated correctly: 
+```typescript
+validateSchemas([TestStruct])
+```
+
 ## Inheritance
 Schema generation with class inheritance is not supported (yet)
 
