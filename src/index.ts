@@ -2,23 +2,18 @@ import bs58 from "bs58";
 import {
   FixedArrayKind,
   OptionKind,
-  Schema,
   Field,
   StructKind,
   VecKind,
-  extendsClass,
   SimpleField,
   CustomField,
   extendingClasses,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
-import { OverrideType } from "./types";
-import "reflect-metadata";
 export * from "./binary";
 export * from "./types";
 
-const STRUCT_META_DATA_SYMBOL = "__borsh_struct_metadata__";
 
 export function baseEncode(value: Uint8Array | string): string {
   if (typeof value === "string") {
@@ -36,7 +31,6 @@ function capitalizeFirstLetter(string: string) {
 }
 
 export function serializeField(
-  schema: Schema,
   fieldName: string,
   value: any,
   fieldType: any, // A simple type of a CustomField
@@ -62,19 +56,19 @@ export function serializeField(
         writer.writeU32(len); // For dynamically sized array we write the size as u32 according to specification
       }
       for (let i = 0; i < len; i++) {
-        serializeField(schema, null, value[i], fieldType.elementType, writer);
+        serializeField(null, value[i], fieldType.elementType, writer);
       }
     } else if (fieldType instanceof OptionKind) {
       if (value === null || value === undefined) {
         writer.writeU8(0);
       } else {
         writer.writeU8(1);
-        serializeField(schema, fieldName, value, fieldType.elementType, writer);
+        serializeField(fieldName, value, fieldType.elementType, writer);
       }
     } else if (typeof fieldType["serialize"] == "function") {
       fieldType.serialize(value, writer);
     } else {
-      serializeStruct(schema, value, writer);
+      serializeStruct(value, writer);
     }
   } catch (error) {
     if (error instanceof BorshError) {
@@ -85,23 +79,22 @@ export function serializeField(
 }
 
 export function serializeStruct(
-  schema: Schema,
   obj: any,
   writer: BinaryWriter
 ) {
   if (typeof obj.borshSerialize === "function") {
-    obj.borshSerialize(schema, writer);
+    obj.borshSerialize(writer);
     return;
   }
 
-  const structSchema = schema.get(obj.constructor);
+  const structSchema = getSchema(obj.constructor)
   if (!structSchema) {
     throw new BorshError(`Class ${obj.constructor.name} is missing in schema`);
   }
 
   if (structSchema instanceof StructKind) {
     structSchema.fields.map((field) => {
-      serializeField(schema, field.key, obj[field.key], field.type, writer);
+      serializeField(field.key, obj[field.key], field.type, writer);
     });
   } else {
     throw new BorshError(`Unexpected schema for ${obj.constructor.name}`);
@@ -111,17 +104,15 @@ export function serializeStruct(
 /// Serialize given object using schema of the form:
 /// { class_name -> [ [field_name, field_type], .. ], .. }
 export function serialize(
-  schema: Schema,
   obj: any,
   Writer = BinaryWriter
 ): Uint8Array {
   const writer = new Writer();
-  serializeStruct(schema, obj, writer);
+  serializeStruct(obj, writer);
   return writer.toArray();
 }
 
 function deserializeField(
-  schema: Schema,
   fieldName: string,
   fieldType: any,
   reader: BinaryReader
@@ -138,7 +129,7 @@ function deserializeField(
           : reader.readU32();
       let arr = new Array(len);
       for (let i = 0; i < len; i++) {
-        arr[i] = deserializeField(schema, null, fieldType.elementType, reader);
+        arr[i] = deserializeField(null, fieldType.elementType, reader);
       }
       return arr;
     }
@@ -150,7 +141,6 @@ function deserializeField(
       const option = reader.readU8();
       if (option) {
         return deserializeField(
-          schema,
           fieldName,
           fieldType.elementType,
           reader
@@ -160,7 +150,7 @@ function deserializeField(
       return undefined;
     }
 
-    return deserializeStruct(schema, fieldType, reader);
+    return deserializeStruct(fieldType, reader);
   } catch (error) {
     if (error instanceof BorshError) {
       error.addToFieldPath(fieldName);
@@ -169,12 +159,12 @@ function deserializeField(
   }
 }
 
-function deserializeStruct(schema: Schema, clazz: any, reader: BinaryReader) {
+function deserializeStruct(clazz: any, reader: BinaryReader) {
   if (typeof clazz.borshDeserialize === "function") {
     return clazz.borshDeserialize(reader);
   }
 
-  let structSchema = schema.get(clazz);
+  let structSchema = getSchema(clazz);//schema.get(clazz);
   let idx = undefined;
 
   if (!structSchema) {
@@ -187,32 +177,31 @@ function deserializeStruct(schema: Schema, clazz: any, reader: BinaryReader) {
     // class this can be deserialized to)
 
     // We know that we should serialize into the variant that accounts to the first byte of the read
-    for (const actualClazz of schema.keys()) {
-      if (extendsClass(actualClazz, clazz)) {
-        const variantIndex = getVariantIndex(actualClazz);
-        if (variantIndex !== undefined) {
-          if (typeof variantIndex === "number") {
-            if (variantIndex == idx[0]) {
-              clazz = actualClazz;
-              structSchema = schema.get(clazz);
-              break;
-            }
-          } // variant is array, check all values
-          else {
-            while (idx.length < variantIndex.length) {
-              idx.push(reader.readU8());
-            }
-            // Compare variants
-            if (
-              idx.length === variantIndex.length &&
-              idx.every((value, index) => value === variantIndex[index])
-            ) {
-              clazz = actualClazz;
-              structSchema = schema.get(clazz);
-              break;
-            }
+    for (const actualClazz of getDependencies(clazz)) {
+      const variantIndex = getVariantIndex(actualClazz);
+      if (variantIndex !== undefined) {
+        if (typeof variantIndex === "number") {
+          if (variantIndex == idx[0]) {
+            clazz = actualClazz;
+            structSchema = getSchema(clazz);
+            break;
+          }
+        } // variant is array, check all values
+        else {
+          while (idx.length < variantIndex.length) {
+            idx.push(reader.readU8());
+          }
+          // Compare variants
+          if (
+            idx.length === variantIndex.length &&
+            idx.every((value, index) => value === variantIndex[index])
+          ) {
+            clazz = actualClazz;
+            structSchema = getSchema(clazz);
+            break;
           }
         }
+
       }
     }
     if (!structSchema)
@@ -232,9 +221,8 @@ function deserializeStruct(schema: Schema, clazz: any, reader: BinaryReader) {
 
   if (structSchema instanceof StructKind) {
     const result: { [key: string]: any } = {};
-    for (const field of schema.get(clazz).fields) {
+    for (const field of getSchema(clazz).fields) {
       result[field.key] = deserializeField(
-        schema,
         field.key,
         field.type,
         reader
@@ -247,22 +235,20 @@ function deserializeStruct(schema: Schema, clazz: any, reader: BinaryReader) {
 
 /**
  * /// Deserializes object from bytes using schema.
- * @param schema, schemas generated from generateSchemas([ClassA, ClassB..])
- * @param classType, target Class
  * @param buffer, data
+ * @param classType, target Class
  * @param unchecked, if true then any remaining bytes after deserialization will be ignored
  * @param Reader, optional custom reader
  * @returns
  */
 export function deserialize<T>(
-  schema: Schema,
-  classType: { new(args: any): T },
   buffer: Buffer,
+  classType: { new(args: any): T },
   unchecked: boolean = false,
   Reader = BinaryReader
 ): T {
   const reader = new Reader(buffer);
-  const result = deserializeStruct(schema, classType, reader);
+  const result = deserializeStruct(classType, reader);
   if (!unchecked && reader.offset < buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader.offset
@@ -274,34 +260,27 @@ export function deserialize<T>(
 
 /// Deserializes object from bytes using schema, without checking the length read
 export function deserializeUnchecked<T>(
-  schema: Schema,
   classType: { new(args: any): T },
   buffer: Buffer,
   Reader = BinaryReader
 ): T {
   const reader = new Reader(buffer);
-  return deserializeStruct(schema, classType, reader);
+  return deserializeStruct(classType, reader);
 }
 
-//
 
-const structMetaDataKey = (constructorName: string) => {
-  return STRUCT_META_DATA_SYMBOL + constructorName;
-};
-
-const getOrCreateStructMeta = (clazz: any): { metaDataKey: string, schema: StructKind } => {
-  const metaDataKey = structMetaDataKey(clazz.name);
-  let schema: StructKind = Reflect.getMetadata(
-    metaDataKey,
-    clazz
-  ); // Assume StructKind already exist
+const getOrCreateStructMeta = (clazz: any): StructKind => {
+  //const metaDataKey = structMetaDataKey(clazz.name);
+  let schema: StructKind = getSchema(clazz)
   if (!schema) {
     schema = new StructKind();
   }
-  return {
+  setSchema(clazz, schema);
+  return schema
+  /* return {
     metaDataKey,
     schema
-  }
+  } */
 }
 
 const setDependency = (ctor: Function, depenency: Function) => {
@@ -310,9 +289,7 @@ const setDependency = (ctor: Function, depenency: Function) => {
   }
   ctor.prototype._borsh_dependency.push(depenency);
 }
-/* const hasDependency = (ctor: Function, depenency: Function): boolean => {
-  return !!ctor.prototype._borsh_dependency && ctor.prototype._borsh_dependency.contains(depenency)
-} */
+
 const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
   if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.length == 0) {
     return false
@@ -325,6 +302,19 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
   }
   return true;
 }
+
+const getDependencies = (ctor: Function): Function[] => {
+  return ctor.prototype._borsh_dependency ? ctor.prototype._borsh_dependency : []
+}
+
+const setSchema = (ctor: Function, schema: StructKind) => {
+  ctor.prototype._borsh_schema = schema;
+}
+
+export const getSchema = (ctor: Function): StructKind => {
+  return ctor.prototype._borsh_schema
+}
+
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
@@ -332,13 +322,9 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
  */
 export const variant = (index: number | number[]) => {
   return (ctor: Function) => {
+    getOrCreateStructMeta(ctor);
 
-    const {
-      metaDataKey,
-      schema
-    } = getOrCreateStructMeta(ctor);
     // Define Schema for this class, even though it might miss fields since this is a variant
-    Reflect.defineMetadata(metaDataKey, schema, ctor)
 
     const clazzes = extendingClasses(ctor);
     let prev = ctor;
@@ -350,7 +336,6 @@ export const variant = (index: number | number[]) => {
 
     // Create a custom serialization, for enum by prepend instruction index
     ctor.prototype.borshSerialize = function (
-      schema: Schema,
       writer: BinaryWriter
     ) {
       if (typeof index === "number") {
@@ -362,13 +347,12 @@ export const variant = (index: number | number[]) => {
       }
 
       // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
-      const structSchema: StructKind = schema.get(ctor);
+      const structSchema: StructKind = getSchema(ctor);
 
       // If Schema has fields, "structSchema" will be non empty and "fields" will exist
       if (structSchema?.fields)
         for (const field of structSchema.fields) {
           serializeField(
-            schema,
             field.key,
             this[field.key],
             field.type,
@@ -394,19 +378,8 @@ export const getVariantIndex = (clazz: any): number | number[] | undefined => {
  */
 export function field(properties: SimpleField | CustomField<any>) {
   return (target: {} | any, name?: PropertyKey): any => {
-    /* const metaDataKey = structMetaDataKey(target.constructor.name);
-    let schema: StructKind = Reflect.getMetadata(
-      metaDataKey,
-      target.constructor
-    ); // Assume StructKind already exist
-    if (!schema) {
-      schema = new StructKind();
-    } */
 
-    const {
-      metaDataKey,
-      schema
-    } = getOrCreateStructMeta(target.constructor);
+    const schema = getOrCreateStructMeta(target.constructor);
     const key = name.toString();
 
     let field: Field = undefined;
@@ -438,8 +411,6 @@ export function field(properties: SimpleField | CustomField<any>) {
       }
       schema.fields[properties.index] = field;
     }
-
-    Reflect.defineMetadata(metaDataKey, schema, target.constructor);
   };
 }
 
@@ -448,41 +419,58 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @param validate, run validation?
  * @returns Schema map
  */
-export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
+export const validateSchemas = (clazzes: any[]) => {
+  return validateSchemasIterator(clazzes, new Set());
+};
+
+const validateSchemasIterator = (clazzes: any[], visited: Set<string>) => {
   let ret = new Map<any, StructKind>();
-  let dependencies = new Set();
+  let dependencies = new Set<Function>();
   clazzes.forEach((clazz) => {
-    let schema = Reflect.getMetadata(
-      structMetaDataKey(clazz.name),
-      clazz
-    ) as StructKind;
+    let schema = getSchema(clazz);
+    visited.add(clazz.name);
+
     if (schema) {
       ret.set(clazz, schema);
+      // By field
       schema.getDependencies().forEach((depenency) => {
         dependencies.add(depenency);
       });
     }
+    // Class dependencies (inheritance)
+    getDependencies(clazz).forEach((dependency) => {
+      if (clazzes.find(c => c == dependency) == undefined) {
+        dependencies.add(dependency);
+      }
+    })
+
   });
 
-  // Generate schemas for nested types
+  let filteredDependencies: Function[] = [];
   dependencies.forEach((dependency) => {
+    if (visited.has(dependency.name)) {
+      return;
+    }
+    filteredDependencies.push(dependency);
+    visited.add(dependency.name);
+  })
+
+
+  // Generate schemas for nested types
+  filteredDependencies.forEach((dependency) => {
     if (!ret.has(dependency)) {
-      const dependencySchema = generateSchemas([dependency], validate);
+      const dependencySchema = validateSchemasIterator([dependency], visited);
       dependencySchema.forEach((value, key) => {
         ret.set(key, value);
       });
     }
   });
+  ret.forEach((v, k) => {
+    validateSchema(v, k, ret);
+  })
 
-  if (validate) {
-    ret.forEach((v, k) => {
-      validateSchema(v, k, ret);
-
-    })
-  }
   return new Map(ret);
-};
-
+}
 const validateSchema = (structSchema: StructKind, clazz: Function, schema: Map<Function, StructKind>) => {
   if (!structSchema.fields && !hasDependencies(clazz, schema)) {
     throw new BorshError("Missing schema for class " + clazz.name);
@@ -501,7 +489,6 @@ const validateSchema = (structSchema: StructKind, clazz: Function, schema: Map<F
       }
     }
   });
-
 
 };
 

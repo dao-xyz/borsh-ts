@@ -4,9 +4,10 @@ import { BorshError } from "../error";
 import {
   deserialize,
   serialize,
-  generateSchemas,
+  validateSchemas,
   field,
   variant,
+  getSchema,
 } from "../index";
 import { StructKind, vec, option, fixedArray } from "../types";
 
@@ -26,7 +27,7 @@ describe("struct", () => {
         }
       }
     }
-    const generatedSchemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -39,19 +40,15 @@ describe("struct", () => {
         },
       ],
     });
-    expect(generatedSchemas.get(TestStruct)).toEqual(expectedResult);
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
     const bn123 = new BN(123);
     const instance = new TestStruct({ a: 1, b: bn123 });
-    const buf = serialize(generatedSchemas, instance);
+    const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual(1);
     expect(deserialized.b.toNumber()).toEqual(123);
-    const bufAgain = serialize(generatedSchemas, deserialized);
+    const bufAgain = serialize(deserialized);
     expect(bufAgain).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
   });
 
@@ -66,14 +63,14 @@ describe("struct", () => {
       public a: InnerStruct;
     }
 
-    const generatedSchemas = generateSchemas([TestStruct], true);
-    expect(generatedSchemas.get(TestStruct)).toEqual(
+    validateSchemas([TestStruct]);
+    expect(getSchema(TestStruct)).toEqual(
       new StructKind({
         fields: [{ key: "a", type: InnerStruct }],
       })
     );
 
-    expect(generatedSchemas.get(InnerStruct)).toEqual(
+    expect(getSchema(InnerStruct)).toEqual(
       new StructKind({
         fields: [{ key: "b", type: "u8" }],
       })
@@ -91,7 +88,7 @@ describe("struct", () => {
       public c: number;
     }
 
-    let schema = generateSchemas([TestStruct], true).get(TestStruct);
+    let schema = validateSchemas([TestStruct]).get(TestStruct);
     expect(schema.fields.length).toEqual(2);
     expect(schema.fields[0].key).toEqual("a");
     expect(schema.fields[1].key).toEqual("c");
@@ -114,7 +111,7 @@ describe("bool", () => {
         }
       }
     }
-    const generatedSchemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -128,18 +125,14 @@ describe("bool", () => {
       ],
     });
 
-    expect(generatedSchemas.get(TestStruct)).toEqual(expectedResult);
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
     const instance = new TestStruct({ a: true, b: false });
-    const buf = serialize(generatedSchemas, instance);
+    const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1, 0]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual(true);
     expect(deserialized.b).toEqual(false);
-    const bufAgain = serialize(generatedSchemas, deserialized);
+    const bufAgain = serialize(deserialized);
     expect(bufAgain).toEqual(Buffer.from([1, 0]));
   });
 });
@@ -157,16 +150,11 @@ describe("arrays", () => {
       }
     }
 
-    const generatedSchemas = generateSchemas([TestStruct], true);
-    const buf = serialize(generatedSchemas, new TestStruct({ a: [1, 2, 3] }));
+    validateSchemas([TestStruct]);
+    const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
     expect(buf).toEqual(Buffer.from([3, 0, 0, 0, 1, 2, 3]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
-    console.log(generatedSchemas);
   });
 
   test("fixed array simple", () => {
@@ -181,16 +169,11 @@ describe("arrays", () => {
       }
     }
 
-    const generatedSchemas = generateSchemas([TestStruct], true);
-    const buf = serialize(generatedSchemas, new TestStruct({ a: [1, 2, 3] }));
+    validateSchemas([TestStruct]);
+    const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
     expect(buf).toEqual(Buffer.from([1, 2, 3]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
-    console.log(generatedSchemas);
   });
 
   test("fixed array wrong length serialize", () => {
@@ -205,10 +188,8 @@ describe("arrays", () => {
       }
     }
 
-    const generatedSchemas = generateSchemas([TestStruct], true);
-    expect(() =>
-      serialize(generatedSchemas, new TestStruct({ a: [1, 2] }))
-    ).toThrowError();
+    validateSchemas([TestStruct]);
+    expect(() => serialize(new TestStruct({ a: [1, 2] }))).toThrowError();
   });
 
   test("fixed array wrong length deserialize", () => {
@@ -222,10 +203,8 @@ describe("arrays", () => {
         }
       }
     }
-    const generatedSchemas = generateSchemas([TestStruct], true);
-    expect(() =>
-      deserialize(generatedSchemas, TestStruct, Buffer.from([1, 2]))
-    ).toThrowError();
+    validateSchemas([TestStruct]);
+    expect(() => deserialize(Buffer.from([1, 2]), TestStruct)).toThrowError();
   });
 
   test("vec struct", () => {
@@ -251,19 +230,15 @@ describe("arrays", () => {
       }
     }
 
-    const generatedSchemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const arr = [
       new Element({ a: 1 }),
       new Element({ a: 2 }),
       new Element({ a: 3 }),
     ];
-    const buf = serialize(generatedSchemas, new TestStruct({ a: arr }));
+    const buf = serialize(new TestStruct({ a: arr }));
     expect(buf).toEqual(Buffer.from([3, 0, 0, 0, 1, 2, 3]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual(arr);
   });
 });
@@ -280,14 +255,10 @@ describe("enum", () => {
       }
     }
     const instance = new TestEnum(3);
-    const generatedSchemas = generateSchemas([TestEnum], true);
-    const buf = serialize(generatedSchemas, instance);
+    validateSchemas([TestEnum]);
+    const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1, 3]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestEnum,
-      Buffer.from(buf)
-    );
+    const deserialized = deserialize(Buffer.from(buf), TestEnum);
     expect(deserialized.a).toEqual(3);
   });
 
@@ -295,8 +266,8 @@ describe("enum", () => {
     @variant(1)
     class TestEnum {}
     const instance = new TestEnum();
-    const generatedSchemas = generateSchemas([TestEnum], true);
-    const buf = serialize(generatedSchemas, instance);
+    validateSchemas([TestEnum]);
+    const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1]));
   });
 
@@ -317,8 +288,9 @@ describe("enum", () => {
         this.variant = variant;
       }
     }
-    let schemas = generateSchemas([TestStruct], true);
-    expect(schemas.size).toEqual(2);
+    validateSchemas([TestStruct]);
+    expect(getSchema(TestStruct)).toBeDefined();
+    expect(getSchema(ImplementationByVariant)).toBeDefined();
   });
 
   test("enum field serialization/deserialization", () => {
@@ -355,17 +327,16 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum1(4));
-    const schemas = generateSchemas([Enum0, Enum1, TestStruct], true);
-    expect(schemas.get(Enum0)).toBeDefined();
-    expect(schemas.get(Enum1)).toBeDefined();
-    expect(schemas.get(TestStruct)).toBeDefined();
-    const serialized = serialize(schemas, instance);
+    validateSchemas([Enum0, Enum1, TestStruct]);
+    expect(getSchema(Enum0)).toBeDefined();
+    expect(getSchema(Enum1)).toBeDefined();
+    expect(getSchema(TestStruct)).toBeDefined();
+    const serialized = serialize(instance);
     expect(serialized).toEqual(Buffer.from([1, 4]));
 
     const deserialied = deserialize(
-      schemas,
-      TestStruct,
       Buffer.from(serialized),
+      TestStruct,
       false,
       BinaryReader
     );
@@ -396,15 +367,14 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum2(3));
-    const schemas = generateSchemas([Enum2, TestStruct], true);
-    expect(schemas.get(Enum2)).toBeDefined();
-    expect(schemas.get(TestStruct)).toBeDefined();
-    const serialized = serialize(schemas, instance);
+    validateSchemas([Enum2, TestStruct]);
+    expect(getSchema(Enum2)).toBeDefined();
+    expect(getSchema(TestStruct)).toBeDefined();
+    const serialized = serialize(instance);
     expect(serialized).toEqual(Buffer.from([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
     const deserialied = deserialize(
-      schemas,
-      TestStruct,
       Buffer.from(serialized),
+      TestStruct,
       false,
       BinaryReader
     );
@@ -446,15 +416,14 @@ describe("enum", () => {
       }
     }
     const instance = new TestStruct(new Enum1(5));
-    const schemas = generateSchemas([Enum0, Enum1, TestStruct], true);
-    expect(schemas.get(Enum1)).toBeDefined();
-    expect(schemas.get(TestStruct)).toBeDefined();
-    const serialized = serialize(schemas, instance);
+    validateSchemas([Enum0, Enum1, TestStruct]);
+    expect(getSchema(Enum1)).toBeDefined();
+    expect(getSchema(TestStruct)).toBeDefined();
+    const serialized = serialize(instance);
     expect(serialized).toEqual(Buffer.from([1, 2, 4, 5]));
     const deserialied = deserialize(
-      schemas,
-      TestStruct,
       Buffer.from(serialized),
+      TestStruct,
       false,
       BinaryReader
     );
@@ -472,7 +441,7 @@ describe("option", () => {
         this.a = a;
       }
     }
-    const generatedSchemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -481,23 +450,15 @@ describe("option", () => {
         },
       ],
     });
-    expect(generatedSchemas.get(TestStruct)).toEqual(expectedResult);
-    const bufSome = serialize(generatedSchemas, new TestStruct(123));
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
+    const bufSome = serialize(new TestStruct(123));
     expect(bufSome).toEqual(Buffer.from([1, 123]));
-    const deserializedSome = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(bufSome)
-    );
+    const deserializedSome = deserialize(Buffer.from(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(123);
 
-    const bufNone = serialize(generatedSchemas, new TestStruct(undefined));
+    const bufNone = serialize(new TestStruct(undefined));
     expect(bufNone).toEqual(Buffer.from([0]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(bufNone)
-    );
+    const deserialized = deserialize(Buffer.from(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
   });
 
@@ -516,7 +477,7 @@ describe("option", () => {
         this.a = a;
       }
     }
-    const generatedSchemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -525,26 +486,15 @@ describe("option", () => {
         },
       ],
     });
-    expect(generatedSchemas.get(TestStruct)).toEqual(expectedResult);
-    const bufSome = serialize(
-      generatedSchemas,
-      new TestStruct(new Element(123))
-    );
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
+    const bufSome = serialize(new TestStruct(new Element(123)));
     expect(bufSome).toEqual(Buffer.from([1, 123]));
-    const deserializedSome = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(bufSome)
-    );
+    const deserializedSome = deserialize(Buffer.from(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(new Element(123));
 
-    const bufNone = serialize(generatedSchemas, new TestStruct(undefined));
+    const bufNone = serialize(new TestStruct(undefined));
     expect(bufNone).toEqual(Buffer.from([0]));
-    const deserialized = deserialize(
-      generatedSchemas,
-      TestStruct,
-      Buffer.from(bufNone)
-    );
+    const deserialized = deserialize(Buffer.from(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
   });
 });
@@ -577,12 +527,11 @@ describe("override", () => {
       }
     }
 
-    const schemas = generateSchemas([TestStruct], true);
-    const serialized = serialize(schemas, new TestStruct({ a: 2, b: 3 }));
+    validateSchemas([TestStruct]);
+    const serialized = serialize(new TestStruct({ a: 2, b: 3 }));
     const deserialied = deserialize(
-      schemas,
-      TestStruct,
       Buffer.from(serialized),
+      TestStruct,
       false,
       BinaryReader
     );
@@ -606,7 +555,7 @@ describe("order", () => {
         this.b = b;
       }
     }
-    const schemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -620,12 +569,11 @@ describe("order", () => {
         },
       ],
     });
-    expect(schemas.get(TestStruct)).toEqual(expectedResult);
-    const serialized = serialize(schemas, new TestStruct(2, 3));
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
+    const serialized = serialize(new TestStruct(2, 3));
     const deserialied = deserialize(
-      schemas,
-      TestStruct,
       Buffer.from(serialized),
+      TestStruct,
       false,
       BinaryReader
     );
@@ -640,7 +588,7 @@ describe("order", () => {
       public a: number;
     }
     const thrower = (): void => {
-      generateSchemas([TestStruct], true);
+      validateSchemas([TestStruct]);
     };
 
     // Error is thrown since 1 field with index 1 is undefined behaviour
@@ -656,7 +604,7 @@ describe("order", () => {
       public b: number;
     }
     const thrower = (): void => {
-      generateSchemas([TestStruct], true);
+      validateSchemas([TestStruct]);
     };
 
     // Error is thrown since missing field with index 1
@@ -672,9 +620,7 @@ describe("order", () => {
       @field({ type: "u8" })
       public b: number;
     }
-    const schema: StructKind = generateSchemas([TestStruct], true).get(
-      TestStruct
-    );
+    const schema: StructKind = validateSchemas([TestStruct]).get(TestStruct);
     const expectedResult: StructKind = new StructKind({
       fields: [
         {
@@ -703,13 +649,11 @@ describe("Validation", () => {
     }
 
     const bytes = Uint8Array.from([1, 0]); // has an extra 0
-    const schemas = generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
     expect(() =>
-      deserialize(schemas, TestStruct, Buffer.from(bytes), false)
+      deserialize(Buffer.from(bytes), TestStruct, false)
     ).toThrowError(BorshError);
-    expect(
-      deserialize(schemas, TestStruct, Buffer.from(bytes), true).a
-    ).toEqual(1);
+    expect(deserialize(Buffer.from(bytes), TestStruct, true).a).toEqual(1);
   });
 
   test("missing struct", () => {
@@ -728,7 +672,7 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
-    expect(() => generateSchemas([TestStruct], true)).toThrowError(BorshError);
+    expect(() => validateSchemas([TestStruct])).toThrowError(BorshError);
   });
 
   test("missing variant", () => {
@@ -740,7 +684,35 @@ describe("Validation", () => {
         super();
       }
     }
+    class TestStruct {
+      @field({ type: Super })
+      public missing: Super;
 
+      constructor(missing?: Super) {
+        this.missing = missing;
+      }
+    }
+    validateSchemas([TestStruct]);
+    expect(getSchema(Enum0)).toBeDefined();
+    expect(getSchema(TestStruct)).toBeDefined();
+    expect(getSchema(Super)).toBeUndefined();
+  });
+
+  test("missing variant one off", () => {
+    class Super {}
+    @variant(0)
+    class Enum0 extends Super {
+      constructor() {
+        super();
+      }
+    }
+
+    @variant(1)
+    class Enum1 extends Super {
+      constructor() {
+        super();
+      }
+    }
     class TestStruct {
       @field({ type: Super })
       public missing: Super;
@@ -750,7 +722,11 @@ describe("Validation", () => {
       }
     }
 
-    expect(() => generateSchemas([TestStruct], true)).toThrowError(BorshError);
+    validateSchemas([TestStruct]);
+    expect(getSchema(Enum0)).toBeDefined();
+    expect(getSchema(Enum1)).toBeDefined();
+    expect(getSchema(TestStruct)).toBeDefined();
+    expect(getSchema(Super)).toBeUndefined();
   });
 
   test("valid dependency", () => {
@@ -770,6 +746,6 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
-    generateSchemas([TestStruct], true);
+    validateSchemas([TestStruct]);
   });
 });

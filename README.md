@@ -4,7 +4,7 @@
 [![NPM version](https://img.shields.io/npm/v/@s2g/borsh.svg?style=flat-square)](https://npmjs.com/@s2g/borsh)
 [![Size on NPM](https://img.shields.io/bundlephobia/minzip/@s2g/borsh.svg?style=flat-square)](https://npmjs.com/@s2g/borsh)
 
-**Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using field and class decorators.
+**Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
 
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
@@ -27,14 +27,38 @@ yarn add @s2g/borsh
 ### Serializing an object
 *SomeClass* class is decorated using decorators explained later
 ```typescript
-const schemas = generateSchemas([SomeClass])
-const value = new SomeClass({ x: 255, y: 20, z: '123', q: [1, 2, 3] });
+class SomeClass 
+{
+    @field({'u8'})
+    x: number
 
-// Serialize
-const buffer = serialize(schemas, value);
+    @field({'u64'})
+    y: number
+
+    @field({'String'})
+    z: string
+
+    @field({type: vec('u32')})
+    q: number[]
+
+    constructor(data?:SomeClass)
+    {
+        if(data)
+        {
+            Object.assign(this,data)
+        }
+    }
+}
+
+...
+
+const value = new SomeClass({ x: 255, y: 20, z: 'abc', q: [1, 2, 3] });
+
+// Serialize 
+const buffer = serialize(value); 
 
 // Deserialize
-const deserializedValue = deserialize(schemas, SomeClass, buffer);
+const deserialized = deserialize(buffer,SomeClass);
 ```
 
 In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
@@ -164,12 +188,10 @@ class TestStruct {
     }
 }
 
-const schemas = generateSchemas([TestStruct]);
-const serialized = serialize(schemas, new TestStruct({ a: 2, b: 3 }));
+const serialized = serialize(new TestStruct({ a: 2, b: 3 }));
 const deserialied = deserialize(
-    schemas,
-    TestStruct,
-    Buffer.from(serialized)
+    Buffer.from(serialized),
+    TestStruct
 );
 expect(deserialied.obj).toBeDefined();
 expect(deserialied.obj.a).toEqual(5);
