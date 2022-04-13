@@ -27,6 +27,11 @@ yarn add @s2g/borsh
 ### Serializing an object
 *SomeClass* class is decorated using decorators explained later
 ```typescript
+import {
+  deserialize,
+  serialize,
+} from "@s2g/borsh";
+
 class SomeClass 
 {
     @field({'u8'})
