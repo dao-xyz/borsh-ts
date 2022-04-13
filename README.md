@@ -30,7 +30,10 @@ yarn add @s2g/borsh
 import {
   deserialize,
   serialize,
-} from "@s2g/borsh";
+  field,
+  variant,
+  vec,
+} from "../index";
 
 class SomeClass 
 {

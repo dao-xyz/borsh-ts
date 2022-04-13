@@ -8,8 +8,11 @@ import {
   field,
   variant,
   getSchema,
+  StructKind,
+  vec,
+  option,
+  fixedArray,
 } from "../index";
-import { StructKind, vec, option, fixedArray } from "../types";
 
 describe("struct", () => {
   test("multifield", () => {
@@ -264,7 +267,7 @@ describe("enum", () => {
 
   test("empty", () => {
     @variant(1)
-    class TestEnum { }
+    class TestEnum {}
     const instance = new TestEnum();
     validate([TestEnum]);
     const buf = serialize(instance);
@@ -294,7 +297,7 @@ describe("enum", () => {
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super { }
+    class Super {}
 
     @variant(0)
     class Enum0 extends Super {
@@ -345,7 +348,7 @@ describe("enum", () => {
   });
 
   test("wrapped enum", () => {
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Enum2 extends Super {
@@ -383,7 +386,7 @@ describe("enum", () => {
   });
 
   test("enum variant array", () => {
-    class Super { }
+    class Super {}
 
     @variant([1, 2, 3])
     class Enum0 extends Super {
@@ -676,7 +679,7 @@ describe("Validation", () => {
   });
 
   test("missing variant", () => {
-    class Super { }
+    class Super {}
 
     @variant(0)
     class Enum0 extends Super {
@@ -699,7 +702,7 @@ describe("Validation", () => {
   });
 
   test("missing variant one off", () => {
-    class Super { }
+    class Super {}
     @variant(0)
     class Enum0 extends Super {
       constructor() {
