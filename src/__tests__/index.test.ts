@@ -659,7 +659,7 @@ describe("Validation", () => {
     expect(deserialize(Buffer.from(bytes), TestStruct, true).a).toEqual(1);
   });
 
-  test("missing struct", () => {
+  test("undefined throws error", () => {
     class MissingImplementation {
       public someField: number;
       constructor(someField?: number) {
@@ -676,6 +676,7 @@ describe("Validation", () => {
       }
     }
     expect(() => validate([TestStruct])).toThrowError(BorshError);
+    validate([TestStruct], true); // Should be ok since we allow undefined
   });
 
   test("missing variant", () => {

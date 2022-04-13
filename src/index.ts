@@ -419,19 +419,18 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @param validate, run validation?
  * @returns Schema map
  */
-export const validate = (clazzes: any[]) => {
-  return validateIterator(clazzes, new Set());
+export const validate = (clazzes: any[], allowUndefined = false) => {
+  return validateIterator(clazzes, allowUndefined, new Set());
 };
 
-const validateIterator = (clazzes: any[], visited: Set<string>) => {
-  let ret = new Map<any, StructKind>();
+const validateIterator = (clazzes: any[], allowUndefined: boolean, visited: Set<string>) => {
+  let schemas = new Map<any, StructKind>();
   let dependencies = new Set<Function>();
   clazzes.forEach((clazz) => {
-    let schema = getSchema(clazz);
     visited.add(clazz.name);
-
+    const schema = getSchema(clazz);
     if (schema) {
-      ret.set(clazz, schema);
+      schemas.set(clazz, schema);
       // By field
       schema.getDependencies().forEach((depenency) => {
         dependencies.add(depenency);
@@ -458,39 +457,38 @@ const validateIterator = (clazzes: any[], visited: Set<string>) => {
 
   // Generate schemas for nested types
   filteredDependencies.forEach((dependency) => {
-    if (!ret.has(dependency)) {
-      const dependencySchema = validateIterator([dependency], visited);
+    if (!schemas.has(dependency)) {
+      const dependencySchema = validateIterator([dependency], allowUndefined, visited);
       dependencySchema.forEach((value, key) => {
-        ret.set(key, value);
+        schemas.set(key, value);
       });
     }
   });
-  ret.forEach((v, k) => {
-    validateSchema(v, k, ret);
-  })
-
-  return new Map(ret);
-}
-const validateSchema = (structSchema: StructKind, clazz: Function, schema: Map<Function, StructKind>) => {
-  if (!structSchema.fields && !hasDependencies(clazz, schema)) {
-    throw new BorshError("Missing schema for class " + clazz.name);
-  }
-
-  structSchema.fields.forEach((field) => {
-    if (!field) {
-      throw new BorshError(
-        "Field is missing definition, most likely due to field indexing with missing indices"
-      );
+  schemas.forEach((structSchema, clazz) => {
+    if (!structSchema.fields && !hasDependencies(clazz, schemas)) {
+      throw new BorshError("Missing schema for class " + clazz.name);
     }
-
-    if (field.type instanceof Function) {
-      if (!schema.has(field.type) && !hasDependencies(field.type, schema)) {
-        throw new BorshError("Unknown field type: " + field.type.name);
+    structSchema.fields.forEach((field) => {
+      if (!field) {
+        throw new BorshError(
+          "Field is missing definition, most likely due to field indexing with missing indices"
+        );
       }
-    }
-  });
+      if (allowUndefined) {
+        return;
+      }
 
-};
+      if (field.type instanceof Function) {
+        if (!schemas.has(field.type) && !hasDependencies(field.type, schemas)) {
+          throw new BorshError("Unknown field type: " + field.type.name);
+        }
+      }
+    });
+  })
+  return schemas;
+
+}
+
 
 const resize = (arr: Array<any>, newSize: number, defaultValue: any) => {
   while (newSize > arr.length) arr.push(defaultValue);
