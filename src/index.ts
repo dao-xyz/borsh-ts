@@ -304,13 +304,27 @@ const getOrCreateStructMeta = (clazz: any): { metaDataKey: string, schema: Struc
   }
 }
 
-const setIsDependency = (ctor: Function) => {
-  ctor.prototype._borsh_dependency = true;
+const setDependency = (ctor: Function, depenency: Function) => {
+  if (!ctor.prototype._borsh_dependency) {
+    ctor.prototype._borsh_dependency = []
+  }
+  ctor.prototype._borsh_dependency.push(depenency);
 }
-const isDependency = (ctor: Function): boolean => {
-  return !!ctor.prototype._borsh_dependency
-}
+/* const hasDependency = (ctor: Function, depenency: Function): boolean => {
+  return !!ctor.prototype._borsh_dependency && ctor.prototype._borsh_dependency.contains(depenency)
+} */
+const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
+  if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.length == 0) {
+    return false
+  }
 
+  for (const dependency of ctor.prototype._borsh_dependency) {
+    if (!schema.has(dependency)) {
+      return false;
+    }
+  }
+  return true;
+}
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
@@ -327,8 +341,10 @@ export const variant = (index: number | number[]) => {
     Reflect.defineMetadata(metaDataKey, schema, ctor)
 
     const clazzes = extendingClasses(ctor);
+    let prev = ctor;
     for (const clazz of clazzes) {
-      setIsDependency(clazz); // Super classes are marked so we know they have some importance/meaningfulness
+      setDependency(clazz, prev); // Super classes are marked so we know they have some importance/meaningfulness
+      prev = clazz;
     }
 
 
@@ -467,8 +483,8 @@ export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
   return new Map(ret);
 };
 
-const validateSchema = (structSchema: StructKind, clazz: any, schema: Map<any, StructKind>) => {
-  if (!structSchema.fields && !isDependency(clazz)) {
+const validateSchema = (structSchema: StructKind, clazz: Function, schema: Map<Function, StructKind>) => {
+  if (!structSchema.fields && !hasDependencies(clazz, schema)) {
     throw new BorshError("Missing schema for class " + clazz.name);
   }
 
@@ -480,7 +496,7 @@ const validateSchema = (structSchema: StructKind, clazz: any, schema: Map<any, S
     }
 
     if (field.type instanceof Function) {
-      if (!schema.has(field.type) && !isDependency(field.type)) {
+      if (!schema.has(field.type) && !hasDependencies(field.type, schema)) {
         throw new BorshError("Unknown field type: " + field.type.name);
       }
     }

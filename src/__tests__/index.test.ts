@@ -712,7 +712,7 @@ describe("Validation", () => {
     ).toEqual(1);
   });
 
-  test("missing", () => {
+  test("missing struct", () => {
     class MissingImplementation {
       public someField: number;
       constructor(someField?: number) {
@@ -728,6 +728,28 @@ describe("Validation", () => {
         this.missing = missing;
       }
     }
+    expect(() => generateSchemas([TestStruct], true)).toThrowError(BorshError);
+  });
+
+  test("missing variant", () => {
+    class Super {}
+
+    @variant(0)
+    class Enum0 extends Super {
+      constructor() {
+        super();
+      }
+    }
+
+    class TestStruct {
+      @field({ type: Super })
+      public missing: Super;
+
+      constructor(missing?: Super) {
+        this.missing = missing;
+      }
+    }
+
     expect(() => generateSchemas([TestStruct], true)).toThrowError(BorshError);
   });
 
