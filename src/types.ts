@@ -1,4 +1,5 @@
 import { BinaryReader, BinaryWriter } from "./binary";
+import { BorshError } from "./error";
 
 /**
  * Class with constructor
@@ -21,6 +22,23 @@ export const extendsClass = (clazz: any, otherClazz: any): boolean => {
     }
   }
   return false;
+};
+
+export const extendingClasses = (clazz: any): any[] => {
+  let ret = [];
+  if (clazz instanceof Function) {
+    let baseClass = clazz;
+    while (baseClass) {
+      const newBaseClass = Object.getPrototypeOf(baseClass);
+      if (newBaseClass && newBaseClass !== Object && newBaseClass.name) {
+        ret.push(newBaseClass)
+        baseClass = newBaseClass;
+      } else {
+        return ret;
+      }
+    }
+  }
+  return ret;
 };
 
 export interface OverrideType<T> {
@@ -62,12 +80,12 @@ export class WrappedType {
   }
 }
 
-export class OptionKind extends WrappedType {}
+export class OptionKind extends WrappedType { }
 export const option = (type: FieldType): OptionKind => {
   return new OptionKind(type);
 };
 
-export class VecKind extends WrappedType {}
+export class VecKind extends WrappedType { }
 export const vec = (type: FieldType): VecKind => {
   return new VecKind(type);
 };
@@ -99,7 +117,10 @@ export class StructKind {
   }
   getDependencies(): Constructor<any>[] {
     let ret: Constructor<any>[] = [];
-    this.fields.forEach((field) => {
+    this.fields.forEach((field, ix) => {
+      if (!field) {
+        throw new BorshError("Field: " + ix + " is missing specification");
+      }
       if (field.type instanceof WrappedType) {
         let dependency = field.type.getDependency();
         if (dependency) ret.push(dependency);

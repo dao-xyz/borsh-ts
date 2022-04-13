@@ -9,6 +9,7 @@ import {
   extendsClass,
   SimpleField,
   CustomField,
+  extendingClasses,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
@@ -53,8 +54,7 @@ export function serializeField(
       if (fieldType instanceof FixedArrayKind) {
         if (fieldType.length != len) {
           throw new BorshError(
-            `Expecting array of length ${(fieldType as any)[0]}, but got ${
-              value.length
+            `Expecting array of length ${(fieldType as any)[0]}, but got ${value.length
             }`
           );
         }
@@ -256,7 +256,7 @@ function deserializeStruct(schema: Schema, clazz: any, reader: BinaryReader) {
  */
 export function deserialize<T>(
   schema: Schema,
-  classType: { new (args: any): T },
+  classType: { new(args: any): T },
   buffer: Buffer,
   unchecked: boolean = false,
   Reader = BinaryReader
@@ -265,8 +265,7 @@ export function deserialize<T>(
   const result = deserializeStruct(schema, classType, reader);
   if (!unchecked && reader.offset < buffer.length) {
     throw new BorshError(
-      `Unexpected ${
-        buffer.length - reader.offset
+      `Unexpected ${buffer.length - reader.offset
       } bytes after deserialized data`
     );
   }
@@ -276,7 +275,7 @@ export function deserialize<T>(
 /// Deserializes object from bytes using schema, without checking the length read
 export function deserializeUnchecked<T>(
   schema: Schema,
-  classType: { new (args: any): T },
+  classType: { new(args: any): T },
   buffer: Buffer,
   Reader = BinaryReader
 ): T {
@@ -290,6 +289,28 @@ const structMetaDataKey = (constructorName: string) => {
   return STRUCT_META_DATA_SYMBOL + constructorName;
 };
 
+const getOrCreateStructMeta = (clazz: any): { metaDataKey: string, schema: StructKind } => {
+  const metaDataKey = structMetaDataKey(clazz.name);
+  let schema: StructKind = Reflect.getMetadata(
+    metaDataKey,
+    clazz
+  ); // Assume StructKind already exist
+  if (!schema) {
+    schema = new StructKind();
+  }
+  return {
+    metaDataKey,
+    schema
+  }
+}
+
+const setIsDependency = (ctor: Function) => {
+  ctor.prototype._borsh_dependency = true;
+}
+const isDependency = (ctor: Function): boolean => {
+  return !!ctor.prototype._borsh_dependency
+}
+
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
@@ -297,6 +318,20 @@ const structMetaDataKey = (constructorName: string) => {
  */
 export const variant = (index: number | number[]) => {
   return (ctor: Function) => {
+
+    const {
+      metaDataKey,
+      schema
+    } = getOrCreateStructMeta(ctor);
+    // Define Schema for this class, even though it might miss fields since this is a variant
+    Reflect.defineMetadata(metaDataKey, schema, ctor)
+
+    const clazzes = extendingClasses(ctor);
+    for (const clazz of clazzes) {
+      setIsDependency(clazz); // Super classes are marked so we know they have some importance/meaningfulness
+    }
+
+
     // Create a custom serialization, for enum by prepend instruction index
     ctor.prototype.borshSerialize = function (
       schema: Schema,
@@ -343,15 +378,21 @@ export const getVariantIndex = (clazz: any): number | number[] | undefined => {
  */
 export function field(properties: SimpleField | CustomField<any>) {
   return (target: {} | any, name?: PropertyKey): any => {
-    const metaDataKey = structMetaDataKey(target.constructor.name);
+    /* const metaDataKey = structMetaDataKey(target.constructor.name);
     let schema: StructKind = Reflect.getMetadata(
       metaDataKey,
       target.constructor
     ); // Assume StructKind already exist
-    const key = name.toString();
     if (!schema) {
       schema = new StructKind();
-    }
+    } */
+
+    const {
+      metaDataKey,
+      schema
+    } = getOrCreateStructMeta(target.constructor);
+    const key = name.toString();
+
     let field: Field = undefined;
     if ((properties as SimpleField)["type"] != undefined) {
       field = {
@@ -371,9 +412,9 @@ export function field(properties: SimpleField | CustomField<any>) {
       if (schema.fields[properties.index]) {
         throw new BorshError(
           "Multiple fields defined at the same index: " +
-            properties.index +
-            ", class: " +
-            target.constructor.name
+          properties.index +
+          ", class: " +
+          target.constructor.name
         );
       }
       if (properties.index >= schema.fields.length) {
@@ -400,9 +441,6 @@ export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
       clazz
     ) as StructKind;
     if (schema) {
-      if (validate) {
-        validateSchema(schema, clazz);
-      }
       ret.set(clazz, schema);
       schema.getDependencies().forEach((depenency) => {
         dependencies.add(depenency);
@@ -419,20 +457,36 @@ export const generateSchemas = (clazzes: any[], validate?: boolean): Schema => {
       });
     }
   });
+
+  if (validate) {
+    ret.forEach((v, k) => {
+      validateSchema(v, k, ret);
+
+    })
+  }
   return new Map(ret);
 };
 
-const validateSchema = (structSchema: StructKind, clazz: any) => {
-  if (!structSchema.fields) {
-    throw new BorshError("Missing fields for class: " + clazz.name);
+const validateSchema = (structSchema: StructKind, clazz: any, schema: Map<any, StructKind>) => {
+  if (!structSchema.fields && !isDependency(clazz)) {
+    throw new BorshError("Missing schema for class " + clazz.name);
   }
+
   structSchema.fields.forEach((field) => {
     if (!field) {
       throw new BorshError(
         "Field is missing definition, most likely due to field indexing with missing indices"
       );
     }
+
+    if (field.type instanceof Function) {
+      if (!schema.has(field.type) && !isDependency(field.type)) {
+        throw new BorshError("Unknown field type: " + field.type.name);
+      }
+    }
   });
+
+
 };
 
 const resize = (arr: Array<any>, newSize: number, defaultValue: any) => {
