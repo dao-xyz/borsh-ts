@@ -63,10 +63,10 @@ class SomeClass
 const value = new SomeClass({ x: 255, y: 20, z: 'abc', q: [1, 2, 3] });
 
 // Serialize 
-const buffer = serialize(value); 
+const serialized = serialize(value); 
 
 // Deserialize
-const deserialized = deserialize(buffer,SomeClass);
+const deserialized = deserialize(Buffer.from(serialized),SomeClass);
 ```
 
 In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
