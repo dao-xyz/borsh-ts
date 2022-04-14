@@ -430,7 +430,9 @@ const validateIterator = (clazzes: any[], allowUndefined: boolean, visited: Set<
     visited.add(clazz.name);
     const schema = getSchema(clazz);
     if (schema) {
+
       schemas.set(clazz, schema);
+
       // By field
       schema.getDependencies().forEach((depenency) => {
         dependencies.add(depenency);
@@ -477,7 +479,6 @@ const validateIterator = (clazzes: any[], allowUndefined: boolean, visited: Set<
       if (allowUndefined) {
         return;
       }
-
       if (field.type instanceof Function) {
         if (!schemas.has(field.type) && !hasDependencies(field.type, schemas)) {
           throw new BorshError("Unknown field type: " + field.type.name);

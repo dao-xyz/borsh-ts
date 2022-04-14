@@ -1,8 +1,8 @@
 # Borsh TS 
 [![Project license](https://img.shields.io/badge/license-Apache2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![NPM version](https://img.shields.io/npm/v/@s2g/borsh.svg?style=flat-square)](https://npmjs.com/@s2g/borsh)
-[![Size on NPM](https://img.shields.io/bundlephobia/minzip/@s2g/borsh.svg?style=flat-square)](https://npmjs.com/@s2g/borsh)
+[![NPM version](https://img.shields.io/npm/v/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
+[![Size on NPM](https://img.shields.io/bundlephobia/minzip/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
 
 **Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
 
@@ -14,13 +14,12 @@ With this imlementation on can generate serialization/deserialization Schemas us
 ## Installation
 
 ```
-npm install @s2g/borsh
+npm install @dao-xyz/borsh
 ```
 or 
 ```
-yarn add @s2g/borsh
+yarn add @dao-xyz/borsh
 ```
-
 
 ## Serializing and deserializing
 
@@ -33,7 +32,7 @@ import {
   field,
   variant,
   vec,
-} from "@s2g/borsh";
+} from "@dao-xyz/borsh";
 
 class SomeClass 
 {
@@ -267,7 +266,7 @@ yarn test
 
 Run linter
 ```bash
-yarn lint
+yarn pretty
 ```
 
 # License
