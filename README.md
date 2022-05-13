@@ -33,6 +33,7 @@ import {
   variant,
   vec,
 } from "@dao-xyz/borsh";
+import BN from 'bn.js'
 
 class SomeClass 
 {
@@ -40,7 +41,7 @@ class SomeClass
     x: number
 
     @field({'u64'})
-    y: number
+    y: BN
 
     @field({'String'})
     z: string
