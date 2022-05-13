@@ -86,7 +86,7 @@ class SomeClass
 ## Examples of schema generation using decorators
 For more examples, see the [tests](./src/__tests__index.test.ts).
 
-**Enum, variant at instruction "slot" 1.** 
+**Enum, with 2 variants** 
 
 ```typescript
 class Super {}
