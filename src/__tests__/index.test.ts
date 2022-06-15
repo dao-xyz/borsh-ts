@@ -659,6 +659,50 @@ describe("Validation", () => {
     expect(deserialize(Buffer.from(bytes), TestStruct, true).a).toEqual(1);
   });
 
+  test("variant conflict, index", () => {
+    const classDef = () => {
+      class TestStruct {
+        constructor() {}
+      }
+      @variant(0) // Same as B
+      class A extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+
+      @variant(0) // Same as A
+      class B extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+    };
+    expect(() => classDef()).toThrowError(BorshError);
+  });
+
+  test("variant conflict, indices", () => {
+    const classDef = () => {
+      class TestStruct {
+        constructor() {}
+      }
+      @variant([0, 1, 2]) // Same as B
+      class A extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+
+      @variant([0, 1, 2]) // Same as A
+      class B extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+    };
+    expect(() => classDef()).toThrowError(BorshError);
+  });
+
   test("undefined throws error", () => {
     class MissingImplementation {
       public someField: number;

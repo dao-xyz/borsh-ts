@@ -177,7 +177,7 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
     // class this can be deserialized to)
 
     // We know that we should serialize into the variant that accounts to the first byte of the read
-    for (const actualClazz of getDependencies(clazz)) {
+    for (const [_key, actualClazz] of getDependencies(clazz)) {
       const variantIndex = getVariantIndex(actualClazz);
       if (variantIndex !== undefined) {
         if (typeof variantIndex === "number") {
@@ -283,19 +283,22 @@ const getOrCreateStructMeta = (clazz: any): StructKind => {
   } */
 }
 
-const setDependency = (ctor: Function, depenency: Function) => {
-  if (!ctor.prototype._borsh_dependency) {
-    ctor.prototype._borsh_dependency = []
+const setDependency = (ctor: Function, dependency: Function) => {
+  let dependencies = getDependencies(ctor);
+  let key = JSON.stringify(getVariantIndex(dependency));
+  if (dependencies.has(key)) {
+    throw new BorshError(`Conflicting variants: Dependency ${dependencies.get(key).name} and ${dependency.name} share same variant index(es)`)
   }
-  ctor.prototype._borsh_dependency.push(depenency);
+  dependencies.set(key, dependency);
+  ctor.prototype._borsh_dependency = dependencies;
 }
 
 const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
-  if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.length == 0) {
+  if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.size == 0) {
     return false
   }
 
-  for (const dependency of ctor.prototype._borsh_dependency) {
+  for (const [_key, dependency] of getDependencies(ctor)) {
     if (!schema.has(dependency)) {
       return false;
     }
@@ -303,9 +306,11 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
   return true;
 }
 
-const getDependencies = (ctor: Function): Function[] => {
-  return ctor.prototype._borsh_dependency ? ctor.prototype._borsh_dependency : []
+const getDependencies = (ctor: Function): Map<string, Function> => {
+  return ctor.prototype._borsh_dependency ? ctor.prototype._borsh_dependency : new Map();
 }
+
+
 
 const setSchema = (ctor: Function, schema: StructKind) => {
   ctor.prototype._borsh_schema = schema;
@@ -323,16 +328,6 @@ export const getSchema = (ctor: Function): StructKind => {
 export const variant = (index: number | number[]) => {
   return (ctor: Function) => {
     getOrCreateStructMeta(ctor);
-
-    // Define Schema for this class, even though it might miss fields since this is a variant
-
-    const clazzes = extendingClasses(ctor);
-    let prev = ctor;
-    for (const clazz of clazzes) {
-      setDependency(clazz, prev); // Super classes are marked so we know they have some importance/meaningfulness
-      prev = clazz;
-    }
-
 
     // Create a custom serialization, for enum by prepend instruction index
     ctor.prototype.borshSerialize = function (
@@ -363,6 +358,15 @@ export const variant = (index: number | number[]) => {
     ctor.prototype._borsh_variant_index = function () {
       return index; // creates a function that returns the variant index on the class
     };
+    // Define Schema for this class, even though it might miss fields since this is a variant
+    const clazzes = extendingClasses(ctor);
+    let prev = ctor;
+    for (const clazz of clazzes) {
+      setDependency(clazz, prev); // Super classes are marked so we know they have some importance/meaningfulness
+      prev = clazz;
+    }
+
+
   };
 };
 
