@@ -347,6 +347,54 @@ describe("enum", () => {
     expect((deserialied.enum as Enum1).b).toEqual(4);
   });
 
+  test("extended enum", () => {
+    class SuperSuper {}
+
+    class Super extends SuperSuper {
+      constructor() {
+        super();
+      }
+    }
+
+    @variant(0)
+    class Enum0 extends Super {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number) {
+        super();
+        this.a = a;
+      }
+    }
+
+    @variant(1)
+    class Enum1 extends Super {
+      @field({ type: "u8" })
+      public b: number;
+
+      constructor(b: number) {
+        super();
+        this.b = b;
+      }
+    }
+
+    const instance = new Enum1(4);
+    //  validate([Enum0, Enum1, Super, SuperSuper]);
+    expect(getSchema(Enum0)).toBeDefined();
+    expect(getSchema(Enum1)).toBeDefined();
+    const serialized = serialize(instance);
+    expect(serialized).toEqual(Buffer.from([1, 4]));
+
+    const deserialied = deserialize(
+      Buffer.from(serialized),
+      SuperSuper,
+      false,
+      BinaryReader
+    );
+    expect(deserialied).toBeInstanceOf(Enum1);
+    expect((deserialied as Enum1).b).toEqual(4);
+  });
+
   test("wrapped enum", () => {
     class Super {}
 

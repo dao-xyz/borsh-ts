@@ -177,7 +177,7 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
     // class this can be deserialized to)
 
     // We know that we should serialize into the variant that accounts to the first byte of the read
-    for (const [_key, actualClazz] of getDependencies(clazz)) {
+    for (const [_key, actualClazz] of getDependenciesRecursively(clazz)) {
       const variantIndex = getVariantIndex(actualClazz);
       if (variantIndex !== undefined) {
         if (typeof variantIndex === "number") {
@@ -286,8 +286,21 @@ const getOrCreateStructMeta = (clazz: any): StructKind => {
 const setDependency = (ctor: Function, dependency: Function) => {
   let dependencies = getDependencies(ctor);
   let key = JSON.stringify(getVariantIndex(dependency));
-  if (dependencies.has(key)) {
+  if (key != undefined && dependencies.has(key)) {
     throw new BorshError(`Conflicting variants: Dependency ${dependencies.get(key).name} and ${dependency.name} share same variant index(es)`)
+  }
+  if (key == undefined) {
+    /**
+     * Class is not a variant but a "bridging class" i.e
+     * class A {}
+     * class B extends A {}
+     * 
+     * @variant(0)
+     * class C extends B {}
+     * 
+     * class B has no variant even though A is a dependency on it, so it gets the key "A/B" instead
+     */
+    key = ctor.name + "/" + dependency.name;
   }
   dependencies.set(key, dependency);
   ctor.prototype._borsh_dependency = dependencies;
@@ -298,7 +311,7 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
     return false
   }
 
-  for (const [_key, dependency] of getDependencies(ctor)) {
+  for (const [_key, dependency] of getDependenciesRecursively(ctor)) {
     if (!schema.has(dependency)) {
       return false;
     }
@@ -308,6 +321,24 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
 
 const getDependencies = (ctor: Function): Map<string, Function> => {
   return ctor.prototype._borsh_dependency ? ctor.prototype._borsh_dependency : new Map();
+}
+
+/**
+ * Flat map class inheritance tree into hashmap where key represents variant key
+ * @param ctor 
+ * @param mem 
+ * @returns a map of dependencies
+ */
+const getDependenciesRecursively = (ctor: Function, mem: Map<string, Function> = new Map()): Map<string, Function> => {
+  let dep = getDependencies(ctor);
+  for (const [key, f] of dep) {
+    if (mem.has(key)) {
+      continue;
+    }
+    mem.set(key, f);
+    getDependenciesRecursively(f, mem);
+  }
+  return mem
 }
 
 
@@ -443,7 +474,7 @@ const validateIterator = (clazzes: any[], allowUndefined: boolean, visited: Set<
       });
     }
     // Class dependencies (inheritance)
-    getDependencies(clazz).forEach((dependency) => {
+    getDependenciesRecursively(clazz).forEach((dependency) => {
       if (clazzes.find(c => c == dependency) == undefined) {
         dependencies.add(dependency);
       }
