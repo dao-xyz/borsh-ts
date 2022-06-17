@@ -89,10 +89,12 @@ export interface Field {
 }
 
 export class StructKind {
+  variant?: number | number[] | string
   fields: Field[];
-  constructor(properties?: { fields: Field[] }) {
+  constructor(properties?: { variant?: number | number[] | string, fields: Field[] }) {
     if (properties) {
       this.fields = properties.fields;
+      this.variant = properties.variant;
     } else {
       this.fields = [];
     }

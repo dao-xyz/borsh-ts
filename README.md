@@ -4,7 +4,7 @@
 [![NPM version](https://img.shields.io/npm/v/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
 [![Size on NPM](https://img.shields.io/bundlephobia/minzip/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
 
-**Borsh TS** is *unofficial* implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
+**Borsh TS** is a Typescript implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
 
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
@@ -123,6 +123,18 @@ class TestStruct {
 }
 
 ```
+Variants can be 'number', 'number[]' (represents nested Rust Enums) or 'string' (not part of the Borsh specification). i.e.
+
+```typescript 
+@variant(0)
+class ClazzA
+...
+@variant([0,1])
+class ClazzB
+...
+@variant("clazz c")
+class ClazzC
+```
 
 
 **Nested Schema generation for structs**
@@ -230,7 +242,27 @@ validate([TestStruct])
 ```
 
 ## Inheritance
-Schema generation with class inheritance is not supported (yet)
+Schema generation is supported if deserialization is deterministic
+e.g.
+```typescript 
+class A {
+    @field({type: 'number'})
+    a: number 
+}
+
+@variant(0)
+class B1 extends A{
+    @field({type: 'number'})
+    b1: number 
+}
+
+@variant(1)
+class B2 extends A{
+    @field({type: 'number'})
+    b2: number 
+}
+
+```
 
 
 ## Type Mappings

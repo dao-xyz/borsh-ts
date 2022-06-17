@@ -8,6 +8,7 @@ import {
   SimpleField,
   CustomField,
   extendingClasses,
+  Constructor,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
@@ -87,18 +88,39 @@ export function serializeStruct(
     return;
   }
 
-  const structSchema = getSchema(obj.constructor)
-  if (!structSchema) {
+
+  // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
+  const structSchemas = getSchemasBottomUp(obj.constructor);
+
+  // If Schema has fields, "structSchema" will be non empty and "fields" will exist
+  if (structSchemas.length == 0) {
     throw new BorshError(`Class ${obj.constructor.name} is missing in schema`);
   }
 
-  if (structSchema instanceof StructKind) {
-    structSchema.fields.map((field) => {
-      serializeField(field.key, obj[field.key], field.type, writer);
-    });
-  } else {
-    throw new BorshError(`Unexpected schema for ${obj.constructor.name}`);
-  }
+  structSchemas.forEach((v) => {
+    if (v.schema instanceof StructKind) {
+      const index = v.schema.variant;
+      if (index != undefined) {
+        if (typeof index === "number") {
+          writer.writeU8(index);
+        } else if (Array.isArray(index)) {
+          index.forEach((i) => {
+            writer.writeU8(i);
+          });
+        }
+        else { // is string
+          writer.writeString(index);
+        }
+      }
+
+      v.schema.fields.map((field) => {
+        serializeField(field.key, obj[field.key], field.type, writer);
+      });
+    } else {
+      throw new BorshError(`Unexpected schema for ${obj.constructor.name}`);
+    }
+  })
+
 }
 
 /// Serialize given object using schema of the form:
@@ -164,73 +186,119 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
     return clazz.borshDeserialize(reader);
   }
 
-  let structSchema = getSchema(clazz);//schema.get(clazz);
-  let idx = undefined;
+  const result: { [key: string]: any } = {};
 
-  if (!structSchema) {
-    // We find the deserialization schema from one of the subclasses
-
-    // it must be an enum
-    idx = [reader.readU8()];
-
-    // Try polymorphic deserialziation (i.e.  get all subclasses and find best
-    // class this can be deserialized to)
-
-    // We know that we should serialize into the variant that accounts to the first byte of the read
-    for (const [_key, actualClazz] of getDependenciesRecursively(clazz)) {
-      const variantIndex = getVariantIndex(actualClazz);
-      if (variantIndex !== undefined) {
-        if (typeof variantIndex === "number") {
-          if (variantIndex == idx[0]) {
-            clazz = actualClazz;
-            structSchema = getSchema(clazz);
-            break;
-          }
-        } // variant is array, check all values
-        else {
-          while (idx.length < variantIndex.length) {
-            idx.push(reader.readU8());
-          }
-          // Compare variants
-          if (
-            idx.length === variantIndex.length &&
-            idx.every((value, index) => value === variantIndex[index])
-          ) {
-            clazz = actualClazz;
-            structSchema = getSchema(clazz);
-            break;
-          }
-        }
-
-      }
-    }
-    if (!structSchema)
-      throw new BorshError(`Class ${clazz.name} is missing in schema`);
-  } else if (getVariantIndex(clazz) !== undefined) {
-    // It is an enum, but we deserialize into its variant directly
+  // assume clazz is super class
+  if (getVariantIndex(clazz) !== undefined) {
+    // It is an (stupid) enum, but we deserialize into its variant directly
     // This means we should omit the variant index
     let index = getVariantIndex(clazz);
     if (typeof index === "number") {
       reader.readU8();
-    } else {
+    } else if (Array.isArray(index)) {
       for (const _ of index) {
         reader.readU8();
       }
     }
+    else { // string
+      reader.readString();
+    }
   }
 
-  if (structSchema instanceof StructKind) {
-    const result: { [key: string]: any } = {};
-    for (const field of getSchema(clazz).fields) {
-      result[field.key] = deserializeField(
-        field.key,
-        field.type,
-        reader
-      );
+
+  // Polymorphic serialization, i.e. reversed prototype iteration using descriminators
+  let once = false;
+  let currClazz = clazz;
+  while ((getSchema(currClazz) || getDependencies(currClazz).size > 0)) {
+
+    let structSchema = getSchema(currClazz);
+
+    once = true;
+    let variantsIndex: number[] = undefined;
+    let variantString: string = undefined;
+
+    let nextClazz = undefined;
+    let dependencies = getNonTrivialDependencies(currClazz);
+    if (structSchema) {
+      for (const field of structSchema.fields) {
+        result[field.key] = deserializeField(
+          field.key,
+          field.type,
+          reader
+        );
+      }
     }
-    return Object.assign(new clazz(), result);
+    // We know that we should serialize into the variant that accounts to the first byte of the read
+    for (const [_key, actualClazz] of dependencies) {
+      const variantIndex = getVariantIndex(actualClazz);
+      if (variantIndex !== undefined) {
+        if (typeof variantIndex === "number") {
+
+          if (!variantsIndex) {
+            variantsIndex = [reader.readU8()];
+          }
+          if (variantIndex == variantsIndex[0]) {
+            nextClazz = actualClazz;
+            break;
+          }
+        }
+        else if (Array.isArray(variantIndex)) { // variant is array, check all values
+
+          if (!variantsIndex) {
+            variantsIndex = [];
+            while (variantsIndex.length < variantIndex.length) {
+              variantsIndex.push(reader.readU8());
+            }
+          }
+
+          // Compare variants
+          if (
+            variantsIndex.length === variantIndex.length &&
+            (variantsIndex as number[]).every((value, index) => value === variantIndex[index])
+          ) {
+            nextClazz = actualClazz;
+            break;
+          }
+        }
+
+        else { // is string
+          if (variantString == undefined) {
+            variantString = reader.readString();
+          }
+          // Compare variants is just string compare
+          if (
+            variantString === variantIndex
+          ) {
+            nextClazz = actualClazz;
+            break;
+          }
+        }
+      }
+    }
+    if (nextClazz == undefined) {
+      // do a recursive call and copy result, 
+      // this is not computationally performant since we are going to traverse multiple path
+      // and possible do deserialziation on bad paths
+      if (dependencies.size == 1) // still deterministic
+        nextClazz = dependencies.values().next().value;
+      else if (dependencies.size > 1) {
+        const classes = [...dependencies.values()].map((f) => f.name).join(', ')
+        throw new BorshError(`Multiple ambigious deserialization paths from ${currClazz.name} found: ${classes}. This is not allowed, and would not be performant if allowed`)
+      }
+    }
+
+    if (nextClazz == undefined) {
+      break;
+    }
+    currClazz = nextClazz;
+    /* if (!structSchema)
+      throw new BorshError(`Class ${clazz.name} is missing in schema`); */
   }
-  throw new BorshError(`Unexpected schema ${clazz.constructor.name}`);
+  if (!once) {
+    throw new BorshError(`Unexpected schema ${clazz.constructor.name}`);
+  }
+  return Object.assign(new currClazz(), result);
+
 }
 
 /**
@@ -282,11 +350,20 @@ const getOrCreateStructMeta = (clazz: any): StructKind => {
     schema
   } */
 }
+const setDependencyToProtoType = (ctor: Function) => {
+  let proto = Object.getPrototypeOf(ctor);
+  if (proto.prototype?.constructor != undefined)
+    setDependency(proto, ctor);
+}
 
 const setDependency = (ctor: Function, dependency: Function) => {
   let dependencies = getDependencies(ctor);
   let key = JSON.stringify(getVariantIndex(dependency));
   if (key != undefined && dependencies.has(key)) {
+    if (dependencies.get(key) == dependency) {
+      // already added;
+      return;
+    }
     throw new BorshError(`Conflicting variants: Dependency ${dependencies.get(key).name} and ${dependency.name} share same variant index(es)`)
   }
   if (key == undefined) {
@@ -303,7 +380,7 @@ const setDependency = (ctor: Function, dependency: Function) => {
     key = ctor.name + "/" + dependency.name;
   }
   dependencies.set(key, dependency);
-  ctor.prototype._borsh_dependency = dependencies;
+  setDependencies(ctor, dependencies);
 }
 
 const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
@@ -319,9 +396,39 @@ const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean 
   return true;
 }
 
+const getDependencyKey = (ctor: Function) => "_borsh_dependency_" + ctor.name
+
 const getDependencies = (ctor: Function): Map<string, Function> => {
-  return ctor.prototype._borsh_dependency ? ctor.prototype._borsh_dependency : new Map();
+  let existing = ctor.prototype.constructor[getDependencyKey(ctor)]
+  if (existing)
+    return existing;
+  return new Map();
 }
+
+const getNonTrivialDependencies = (ctor: Function): Map<string, Function> => {
+  let ret = new Map<string, Function>();
+  let existing = ctor.prototype.constructor[getDependencyKey(ctor)] as Map<string, Function>;
+  if (existing)
+    existing.forEach((v, k) => {
+      let schema = getSchema(v);
+      if (schema.fields.length > 0 || schema.variant != undefined) { // non trivial
+        ret.set(k, v);
+      }
+      else { // check recursively
+        let req = getNonTrivialDependencies(v);
+        req.forEach((rv, rk) => {
+          ret.set(rk, rv);
+        })
+      }
+
+    });
+  return ret;
+}
+
+const setDependencies = (ctor: Function, dependencies: Map<string, Function>): Map<string, Function> => {
+  return ctor.prototype.constructor[getDependencyKey(ctor)] = dependencies
+}
+
 
 /**
  * Flat map class inheritance tree into hashmap where key represents variant key
@@ -344,51 +451,46 @@ const getDependenciesRecursively = (ctor: Function, mem: Map<string, Function> =
 
 
 const setSchema = (ctor: Function, schema: StructKind) => {
-  ctor.prototype._borsh_schema = schema;
+
+  ctor.prototype.constructor["_borsh_schema_" + ctor.name] = schema
 }
 
 export const getSchema = (ctor: Function): StructKind => {
-  return ctor.prototype._borsh_schema
+  if (ctor.prototype == undefined) {
+    const t = 123;
+  }
+  return ctor.prototype.constructor["_borsh_schema_" + ctor.name];
 }
+
+export const getSchemasBottomUp = (ctor: Function): { clazz: Function, schema: StructKind }[] => {
+  let schemas: { clazz: Function, schema: StructKind }[] = [];
+  while (ctor.prototype != undefined) {
+    let schema = getSchema(ctor);
+    if (schema)
+      schemas.push({
+        clazz: ctor,
+        schema
+      });
+    ctor = Object.getPrototypeOf(ctor);
+  }
+  return schemas.reverse();
+
+}
+
+
 
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
  * @returns Schema decorator function for classes
  */
-export const variant = (index: number | number[]) => {
+export const variant = (index: number | number[] | string) => {
   return (ctor: Function) => {
-    getOrCreateStructMeta(ctor);
+    let schema = getOrCreateStructMeta(ctor);
 
     // Create a custom serialization, for enum by prepend instruction index
-    ctor.prototype.borshSerialize = function (
-      writer: BinaryWriter
-    ) {
-      if (typeof index === "number") {
-        writer.writeU8(index);
-      } else {
-        index.forEach((i) => {
-          writer.writeU8(i);
-        });
-      }
+    schema.variant = index;
 
-      // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
-      const structSchema: StructKind = getSchema(ctor);
-
-      // If Schema has fields, "structSchema" will be non empty and "fields" will exist
-      if (structSchema?.fields)
-        for (const field of structSchema.fields) {
-          serializeField(
-            field.key,
-            this[field.key],
-            field.type,
-            writer
-          );
-        }
-    };
-    ctor.prototype._borsh_variant_index = function () {
-      return index; // creates a function that returns the variant index on the class
-    };
     // Define Schema for this class, even though it might miss fields since this is a variant
     const clazzes = extendingClasses(ctor);
     let prev = ctor;
@@ -401,10 +503,8 @@ export const variant = (index: number | number[]) => {
   };
 };
 
-export const getVariantIndex = (clazz: any): number | number[] | undefined => {
-  if (clazz.prototype._borsh_variant_index)
-    return clazz.prototype._borsh_variant_index();
-  return undefined;
+export const getVariantIndex = (clazz: any): number | number[] | string | undefined => {
+  return getOrCreateStructMeta(clazz).variant;
 };
 
 /**
@@ -413,7 +513,7 @@ export const getVariantIndex = (clazz: any): number | number[] | undefined => {
  */
 export function field(properties: SimpleField | CustomField<any>) {
   return (target: {} | any, name?: PropertyKey): any => {
-
+    setDependencyToProtoType(target.constructor);
     const schema = getOrCreateStructMeta(target.constructor);
     const key = name.toString();
 
@@ -454,74 +554,70 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @param validate, run validation?
  * @returns Schema map
  */
-export const validate = (clazzes: any[], allowUndefined = false) => {
+export const validate = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined = false) => {
   return validateIterator(clazzes, allowUndefined, new Set());
 };
 
-const validateIterator = (clazzes: any[], allowUndefined: boolean, visited: Set<string>) => {
+const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined: boolean, visited: Set<string>) => {
+  clazzes = Array.isArray(clazzes) ? clazzes : [clazzes];
   let schemas = new Map<any, StructKind>();
-  let dependencies = new Set<Function>();
-  clazzes.forEach((clazz) => {
-    visited.add(clazz.name);
-    const schema = getSchema(clazz);
-    if (schema) {
-
-      schemas.set(clazz, schema);
-
-      // By field
-      schema.getDependencies().forEach((depenency) => {
-        dependencies.add(depenency);
-      });
+  clazzes.forEach((clazz, ix) => {
+    while (Object.getPrototypeOf(clazz).prototype != undefined) {
+      clazz = Object.getPrototypeOf(clazz);
     }
-    // Class dependencies (inheritance)
-    getDependenciesRecursively(clazz).forEach((dependency) => {
-      if (clazzes.find(c => c == dependency) == undefined) {
-        dependencies.add(dependency);
-      }
-    })
-
-  });
-
-  let filteredDependencies: Function[] = [];
-  dependencies.forEach((dependency) => {
-    if (visited.has(dependency.name)) {
-      return;
-    }
-    filteredDependencies.push(dependency);
-    visited.add(dependency.name);
-  })
-
-
-  // Generate schemas for nested types
-  filteredDependencies.forEach((dependency) => {
-    if (!schemas.has(dependency)) {
-      const dependencySchema = validateIterator([dependency], allowUndefined, visited);
-      dependencySchema.forEach((value, key) => {
-        schemas.set(key, value);
-      });
-    }
-  });
-  schemas.forEach((structSchema, clazz) => {
-    if (!structSchema.fields && !hasDependencies(clazz, schemas)) {
-      throw new BorshError("Missing schema for class " + clazz.name);
-    }
-    structSchema.fields.forEach((field) => {
-      if (!field) {
-        throw new BorshError(
-          "Field is missing definition, most likely due to field indexing with missing indices"
-        );
-      }
-      if (allowUndefined) {
+    let dependencies = getDependenciesRecursively(clazz);
+    dependencies.set('_', clazz);
+    dependencies.forEach((v, k) => {
+      const schema = getSchema(v);
+      if (!schema) {
         return;
       }
-      if (field.type instanceof Function) {
-        if (!schemas.has(field.type) && !hasDependencies(field.type, schemas)) {
-          throw new BorshError("Unknown field type: " + field.type.name);
-        }
-      }
+      schemas.set(v, schema);
+      visited.add(v.name);
+
+
     });
-  })
-  return schemas;
+
+    let lastVariant: number | number[] | string = undefined;
+    let lastKey: string = undefined;
+    getNonTrivialDependencies(clazz).forEach((dependency, key) => {
+      if (!lastVariant)
+        lastVariant = getVariantIndex(dependency);
+      else if (!validateVariantAreCompatible(lastVariant, getVariantIndex(dependency))) {
+        throw new BorshError(`Class ${dependency.name} is extended by classes with variants of different types. Expecting only one of number, number[] or string`)
+      }
+
+      if (lastKey != undefined && lastVariant == undefined) {
+        throw new BorshError(`Classes inherit ${clazz} and are introducing new field without introducing variants. This leads to unoptimized deserialization`)
+      }
+      lastKey = key;
+    })
+
+    schemas.forEach((structSchema, clazz) => {
+      if (!structSchema.fields && !hasDependencies(clazz, schemas)) {
+        throw new BorshError("Missing schema for class " + clazz.name);
+      }
+      structSchema.fields.forEach((field) => {
+        if (!field) {
+          throw new BorshError(
+            "Field is missing definition, most likely due to field indexing with missing indices"
+          );
+        }
+        if (allowUndefined) {
+          return;
+        }
+        if (field.type instanceof Function) {
+          if (!getSchema(field.type) && !hasDependencies(field.type, schemas)) {
+            throw new BorshError("Unknown field type: " + field.type.name);
+          }
+
+          // Validate field
+          validateIterator(field.type, allowUndefined, visited);
+        }
+      });
+    })
+  });
+
 
 }
 
@@ -530,3 +626,15 @@ const resize = (arr: Array<any>, newSize: number, defaultValue: any) => {
   while (newSize > arr.length) arr.push(defaultValue);
   arr.length = newSize;
 };
+
+const validateVariantAreCompatible = (a: number | number[] | string, b: number | number[] | string) => {
+  if (typeof a != typeof b) {
+    return false;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length != b.length) {
+      return false;
+    }
+  }
+  return true;
+}
