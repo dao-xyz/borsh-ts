@@ -978,22 +978,92 @@ describe("Validation", () => {
   });
 
   test("error for non optimized code", () => {
-    class TestStruct {
+    class Super {
       constructor() {}
     }
 
-    class A extends TestStruct {
+    class A extends Super {
       @field({ type: "String" })
       string: string;
     }
 
-    class B extends TestStruct {
+    class B extends Super {
       @field({ type: "String" })
       string: string;
     }
-    expect(() => validate(TestStruct)).toThrowError(BorshError);
+    expect(() => validate(Super)).toThrowError(BorshError);
   });
 
+  test("valid dependency", () => {
+    class Implementation {
+      @field({ type: "u8" })
+      public someField: number;
+      constructor(someField?: number) {
+        this.someField = someField;
+      }
+    }
+
+    class TestStruct {
+      @field({ type: Implementation })
+      public missing: Implementation;
+
+      constructor(missing?: Implementation) {
+        this.missing = missing;
+      }
+    }
+    validate(TestStruct);
+  });
+
+  test("valid dependency deep", () => {
+    class Super {
+      constructor() {}
+    }
+
+    @variant(0)
+    class A extends Super {}
+
+    @variant(1)
+    class B extends A {}
+
+    class Clazz {
+      @field({ type: Super })
+      clazz: Super;
+
+      constructor(clazz?: Super) {
+        this.clazz = clazz;
+      }
+    }
+    // We pass Other as clazz, but Other does not extend Super, this
+    // is a problem, because this prevents deserialization to work correctly
+    // serialization could in practice work, but would be meaningless by thisk
+    validate([Clazz, Super]);
+    serialize(new Clazz(new B()));
+  });
+
+  test("invalid dependency runtime", () => {
+    class Super {
+      constructor() {}
+    }
+
+    @variant(0)
+    class A extends Super {}
+
+    @variant(1)
+    class Other {}
+
+    class Clazz {
+      @field({ type: Super })
+      clazz: Super;
+
+      constructor(clazz?: Super) {
+        this.clazz = clazz;
+      }
+    }
+    // We pass Other as clazz, but Other does not extend Super, this
+    // is a problem, because this prevents deserialization to work correctly
+    // serialization could in practice work, but would be meaningless by thisk
+    expect(() => serialize(new Clazz(new Other()))).toThrow(BorshError);
+  });
   test("error for non optimized code on deserialization", () => {
     class TestStruct {
       constructor() {}
@@ -1053,25 +1123,5 @@ describe("Validation", () => {
     }
     expect(() => validate(TestStruct)).toThrowError(BorshError);
     validate(TestStruct, true); // Should be ok since we allow undefined
-  });
-
-  test("valid dependency", () => {
-    class Implementation {
-      @field({ type: "u8" })
-      public someField: number;
-      constructor(someField?: number) {
-        this.someField = someField;
-      }
-    }
-
-    class TestStruct {
-      @field({ type: Implementation })
-      public missing: Implementation;
-
-      constructor(missing?: Implementation) {
-        this.missing = missing;
-      }
-    }
-    validate(TestStruct);
   });
 });

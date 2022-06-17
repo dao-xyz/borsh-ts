@@ -1,6 +1,6 @@
 {
   "name": "@dao-xyz/borsh",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "readme": "README.md",
   "homepage": "https://github.com/dao-xyz/borsh-ts#README",
   "description": "Binary Object Representation Serializer for Hashing simplified with decorators",

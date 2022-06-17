@@ -73,6 +73,9 @@ export function serializeField(
     } else if (typeof fieldType["serialize"] == "function") {
       fieldType.serialize(value, writer);
     } else {
+      if (!checkClazzesCompatible(value.constructor, fieldType)) {
+        throw new BorshError(`Field value of field ${fieldName} does not instance of expected Class ${getSuperMostClass(fieldType)}. Got: ${value.constructor.name}`)
+      }
       serializeStruct(value, writer);
     }
   } catch (error) {
@@ -300,8 +303,6 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
       break;
     }
     currClazz = nextClazz;
-    /* if (!structSchema)
-      throw new BorshError(`Class ${clazz.name} is missing in schema`); */
   }
   if (!once) {
     throw new BorshError(`Unexpected schema ${clazz.constructor.name}`);
@@ -347,17 +348,12 @@ export function deserializeUnchecked<T>(
 
 
 const getOrCreateStructMeta = (clazz: any): StructKind => {
-  //const metaDataKey = structMetaDataKey(clazz.name);
   let schema: StructKind = getSchema(clazz)
   if (!schema) {
     schema = new StructKind();
   }
   setSchema(clazz, schema);
   return schema
-  /* return {
-    metaDataKey,
-    schema
-  } */
 }
 const setDependencyToProtoType = (ctor: Function) => {
   let proto = Object.getPrototypeOf(ctor);
@@ -401,18 +397,15 @@ const getSuperMostClass = (clazz: Constructor<any>) => {
   }
   return clazz;
 }
-const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
-  if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.size == 0) {
-    return false
-  }
-
-  for (const [_key, dependency] of getDependenciesRecursively(ctor)) {
-    if (!schema.has(dependency)) {
-      return false;
-    }
-  }
-  return true;
+/**
+ * @param clazzA 
+ * @param clazzB 
+ * @returns true if A inherit B or B inherit A or A == B, else false
+ */
+const checkClazzesCompatible = (clazzA: Constructor<any>, clazzB: Constructor<any>) => {
+  return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
+
 
 const getDependencyKey = (ctor: Function) => "_borsh_dependency_" + ctor.name
 
@@ -610,9 +603,6 @@ const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowU
     })
 
     schemas.forEach((structSchema, clazz) => {
-      if (!structSchema.fields && !hasDependencies(clazz, schemas)) {
-        throw new BorshError("Missing schema for class " + clazz.name);
-      }
       structSchema.fields.forEach((field) => {
         if (!field) {
           throw new BorshError(
@@ -623,7 +613,7 @@ const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowU
           return;
         }
         if (field.type instanceof Function) {
-          if (!getSchema(field.type) && !hasDependencies(field.type, schemas)) {
+          if (!getSchema(field.type) && getNonTrivialDependencies(field.type).size == 0) {
             throw new BorshError("Unknown field type: " + field.type.name);
           }
 
