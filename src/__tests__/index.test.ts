@@ -463,6 +463,35 @@ describe("enum", () => {
       false,
       BinaryReader
     );
+
+    deserialize(
+      Buffer.from(serialize(new Clazz())),
+      Super,
+      false,
+      BinaryReader
+    );
+  });
+
+  test("extended enum inheritance and field value conflict is resolved", () => {
+    @variant(1)
+    class Super {}
+
+    @variant(2)
+    class Clazz extends Super {
+      @field({ type: option(Super) })
+      field: Super;
+      constructor() {
+        super();
+      }
+    }
+
+    deserialize(
+      Buffer.from(serialize(new Clazz())),
+      Clazz,
+      false,
+      BinaryReader
+    );
+
     deserialize(
       Buffer.from(serialize(new Clazz())),
       Super,

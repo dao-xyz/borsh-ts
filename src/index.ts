@@ -38,7 +38,19 @@ export function serializeField(
 ) {
   try {
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
-    if (typeof fieldType === "string") {
+
+    if (value === null || value === undefined) {
+      if (fieldType instanceof OptionKind) {
+        writer.writeU8(0);
+      } else {
+        throw new BorshError(`Trying to serialize a null value but field ${fieldName} but field type is not of type 'option(...)' but is: ${fieldType}`)
+      }
+    }
+    else if (fieldType instanceof OptionKind) {
+      writer.writeU8(1);
+      serializeField(fieldName, value, fieldType.elementType, writer);
+    }
+    else if (typeof fieldType === "string") {
       writer[`write${capitalizeFirstLetter(fieldType)}`](value);
     } else if (
       fieldType instanceof VecKind ||
@@ -58,13 +70,6 @@ export function serializeField(
       for (let i = 0; i < len; i++) {
         serializeField(null, value[i], fieldType.elementType, writer);
       }
-    } else if (fieldType instanceof OptionKind) {
-      if (value === null || value === undefined) {
-        writer.writeU8(0);
-      } else {
-        writer.writeU8(1);
-        serializeField(fieldName, value, fieldType.elementType, writer);
-      }
     } else if (typeof fieldType["serialize"] == "function") {
       fieldType.serialize(value, writer);
     } else {
@@ -82,6 +87,9 @@ export function serializeStruct(
   obj: any,
   writer: BinaryWriter
 ) {
+  if (obj == undefined) {
+    const t = 123;
+  }
   if (typeof obj.borshSerialize === "function") {
     obj.borshSerialize(writer);
     return;
@@ -360,6 +368,10 @@ const setDependencyToProtoType = (ctor: Function) => {
 const setDependency = (ctor: Function, dependency: Function) => {
   let dependencies = getDependencies(ctor);
   let key = JSON.stringify(getVariantIndex(dependency));
+  let classPathKey = "__" + ctor.name + "/" + dependency.name;
+  if (dependencies.has(classPathKey) && key != undefined) {
+    dependencies.delete(classPathKey)
+  }
   if (key != undefined && dependencies.has(key)) {
     if (dependencies.get(key) == dependency) {
       // already added;
@@ -371,14 +383,14 @@ const setDependency = (ctor: Function, dependency: Function) => {
     /**
      * Class is not a variant but a "bridging class" i.e
      * class A {}
-     * class B extends A {}
+     * class B extends A { @field... }
      * 
      * @variant(0)
      * class C extends B {}
      * 
      * class B has no variant even though A is a dependency on it, so it gets the key "A/B" instead
      */
-    key = ctor.name + "/" + dependency.name;
+    key = classPathKey;
   }
   dependencies.set(key, dependency);
   setDependencies(ctor, dependencies);
