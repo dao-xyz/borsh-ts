@@ -446,6 +446,31 @@ describe("enum", () => {
     expect((deserialied as Enum1).b).toEqual(5);
   });
 
+  test("extended enum inheritance variants, deserialization target does not matter", () => {
+    @variant(1)
+    class Super {}
+
+    @variant(2)
+    class Clazz extends Super {
+      constructor() {
+        super();
+      }
+    }
+
+    deserialize(
+      Buffer.from(serialize(new Clazz())),
+      Clazz,
+      false,
+      BinaryReader
+    );
+    deserialize(
+      Buffer.from(serialize(new Clazz())),
+      Super,
+      false,
+      BinaryReader
+    );
+  });
+
   test("inheritance without variant", () => {
     class Super {}
     class A extends Super {
@@ -603,7 +628,6 @@ describe("enum", () => {
         }
       }
     }
-
     let bytes = serialize(
       new HighCouncil([new Gorilla("Go"), new Orangutan("Ora")])
     );

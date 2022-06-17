@@ -22,7 +22,6 @@ export function baseEncode(value: Uint8Array | string): string {
   }
   return bs58.encode(Buffer.from(value));
 }
-
 export function baseDecode(value: string): Buffer {
   return Buffer.from(bs58.decode(value));
 }
@@ -187,6 +186,8 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
   }
 
   const result: { [key: string]: any } = {};
+
+  clazz = getSuperMostClass(clazz);
 
   // assume clazz is super class
   if (getVariantIndex(clazz) !== undefined) {
@@ -382,7 +383,12 @@ const setDependency = (ctor: Function, dependency: Function) => {
   dependencies.set(key, dependency);
   setDependencies(ctor, dependencies);
 }
-
+const getSuperMostClass = (clazz: Constructor<any>) => {
+  while (Object.getPrototypeOf(clazz).prototype != undefined) {
+    clazz = Object.getPrototypeOf(clazz);
+  }
+  return clazz;
+}
 const hasDependencies = (ctor: Function, schema: Map<any, StructKind>): boolean => {
   if (!ctor.prototype._borsh_dependency || ctor.prototype._borsh_dependency.size == 0) {
     return false
@@ -562,9 +568,7 @@ const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowU
   clazzes = Array.isArray(clazzes) ? clazzes : [clazzes];
   let schemas = new Map<any, StructKind>();
   clazzes.forEach((clazz, ix) => {
-    while (Object.getPrototypeOf(clazz).prototype != undefined) {
-      clazz = Object.getPrototypeOf(clazz);
-    }
+    clazz = getSuperMostClass(clazz);
     let dependencies = getDependenciesRecursively(clazz);
     dependencies.set('_', clazz);
     dependencies.forEach((v, k) => {
