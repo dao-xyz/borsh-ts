@@ -472,6 +472,63 @@ describe("enum", () => {
     );
   });
 
+  test("extended enum inheritance variants, serialization target does matter for fields", () => {
+    @variant(0)
+    class Super {}
+
+    @variant(0)
+    class ClazzA extends Super {
+      constructor() {
+        super();
+      }
+    }
+    @variant(1)
+    class ClazzB extends Super {
+      constructor() {
+        super();
+      }
+    }
+
+    class Struct {
+      @field({ type: ClazzA })
+      property: ClazzA;
+      constructor() {}
+    }
+
+    const s = new Struct();
+    s.property = new ClazzB();
+
+    expect(() => serialize(s)).toThrowError();
+  });
+
+  test("extended enum inheritance variants, deserialization target does matter for fields", () => {
+    @variant(0)
+    class Super {}
+
+    @variant(0)
+    class ClazzA extends Super {
+      constructor() {
+        super();
+      }
+    }
+    @variant(1)
+    class ClazzB extends Super {
+      constructor() {
+        super();
+      }
+    }
+
+    class Struct {
+      @field({ type: ClazzB })
+      property: ClazzB;
+      constructor() {}
+    }
+    // we try to deserializ [0,0] into Struct, which shouldnot be possible since property is instance of ClazzB
+    expect(() =>
+      deserialize(Buffer.from(Uint8Array.from([0, 0])), Struct)
+    ).toThrowError();
+  });
+
   test("extended enum inheritance and field value conflict is resolved", () => {
     @variant(1)
     class Super {}

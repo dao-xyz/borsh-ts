@@ -191,14 +191,14 @@ function deserializeField(
   }
 }
 
-function deserializeStruct(clazz: any, reader: BinaryReader) {
-  if (typeof clazz.borshDeserialize === "function") {
-    return clazz.borshDeserialize(reader);
+function deserializeStruct(targetClazz: any, reader: BinaryReader) {
+  if (typeof targetClazz.borshDeserialize === "function") {
+    return targetClazz.borshDeserialize(reader);
   }
 
   const result: { [key: string]: any } = {};
 
-  clazz = getSuperMostClass(clazz);
+  const clazz = getSuperMostClass(targetClazz);
 
   // assume clazz is super class
   if (getVariantIndex(clazz) !== undefined) {
@@ -295,7 +295,7 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
         nextClazz = dependencies.values().next().value;
       else if (dependencies.size > 1) {
         const classes = [...dependencies.values()].map((f) => f.name).join(', ')
-        throw new BorshError(`Multiple ambigious deserialization paths from ${currClazz.name} found: ${classes}. This is not allowed, and would not be performant if allowed`)
+        throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: ${classes} but no matches the variant read from the buffer.`)
       }
     }
 
@@ -306,6 +306,10 @@ function deserializeStruct(clazz: any, reader: BinaryReader) {
   }
   if (!once) {
     throw new BorshError(`Unexpected schema ${clazz.constructor.name}`);
+  }
+  if (!checkClazzesCompatible(currClazz, targetClazz)) {
+    throw new BorshError(`Deserialization of ${targetClazz} yielded another Class: ${clazz} which are not compatible`);
+
   }
   return Object.assign(new currClazz(), result);
 
