@@ -38,8 +38,10 @@ export function serializeField(
 ) {
   try {
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
-
-    if (value === null || value === undefined) {
+    if (typeof fieldType["serialize"] == "function") {
+      fieldType.serialize(value, writer);
+    }
+    else if (value === null || value === undefined) {
       if (fieldType instanceof OptionKind) {
         writer.writeU8(0);
       } else {
@@ -70,8 +72,6 @@ export function serializeField(
       for (let i = 0; i < len; i++) {
         serializeField(null, value[i], fieldType.elementType, writer);
       }
-    } else if (typeof fieldType["serialize"] == "function") {
-      fieldType.serialize(value, writer);
     } else {
       if (!checkClazzesCompatible(value.constructor, fieldType)) {
         throw new BorshError(`Field value of field ${fieldName} does not instance of expected Class ${getSuperMostClass(fieldType)}. Got: ${value.constructor.name}`)
