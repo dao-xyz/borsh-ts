@@ -42,6 +42,7 @@ export type FieldType =
   | "f64"
   | "String"
   | Constructor<any>
+  | CustomField<any>
   | WrappedType;
 export type SimpleField = { type: FieldType; index?: number };
 export interface CustomField<T> extends OverrideType<T> {
@@ -85,7 +86,7 @@ export const fixedArray = (type: FieldType, length: number): FixedArrayKind => {
 
 export interface Field {
   key: string;
-  type: FieldType | CustomField<any>;
+  type: FieldType;
 }
 
 export class StructKind {
