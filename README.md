@@ -37,13 +37,13 @@ import BN from 'bn.js'
 
 class SomeClass 
 {
-    @field({'u8'})
+    @field({type: 'u8'})
     x: number
 
-    @field({'u64'})
+    @field({type: 'u64'})
     y: BN
 
-    @field({'String'})
+    @field({type: 'String'})
     z: string
 
     @field({type: vec('u32')})
