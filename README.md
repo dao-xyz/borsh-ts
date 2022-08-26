@@ -4,7 +4,7 @@
 [![NPM version](https://img.shields.io/npm/v/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
 [![Size on NPM](https://img.shields.io/bundlephobia/minzip/@dao-xyz/borsh.svg?style=flat-square)](https://npmjs.com/@dao-xyz/borsh)
 
-**Borsh TS** is a Typescript implementation of the [Borsh] binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
+**Borsh TS** is a Typescript implementation of the [Borsh](https://borsh.io/) binary serialization format for TypeScript projects. The motivation behind this library is to provide more convinient methods using **field and class decorators.**
 
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
