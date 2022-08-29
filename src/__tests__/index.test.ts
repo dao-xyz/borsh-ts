@@ -342,6 +342,22 @@ describe("number", () => {
     const deserialized = deserialize(Buffer.from(buf), Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
+
+  test("u512", () => {
+    class Struct {
+      @field({ type: "u512" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(BigInt(3));
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, ...new Array(63).fill(0)]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(BigInt(3));
+  });
 });
 describe("enum", () => {
   test("enum base", () => {
