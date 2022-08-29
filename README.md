@@ -33,7 +33,6 @@ import {
   variant,
   vec,
 } from "@dao-xyz/borsh";
-import BN from 'bn.js'
 
 class SomeClass 
 {
@@ -41,7 +40,7 @@ class SomeClass
     x: number
 
     @field({type: 'u64'})
-    y: BN
+    y: bigint
 
     @field({type: 'String'})
     z: string
@@ -183,39 +182,27 @@ class TestStruct {
 
 **Custom serialization and deserialization**
 ```typescript
-
-interface ComplexObject {
-    a: number;
-    b: number;
-}
 class TestStruct {
+
+    // Override ser/der of the number
     @field({
-        serialize: (value: ComplexObject, writer) => {
-            writer.writeU16(value.a + value.b);
+        serialize: (value: number, writer) => {
+        writer.writeU16(value);
         },
-        deserialize: (reader): ComplexObject => {
-            let value = reader.readU16();
-            return {
-                a: value,
-                b: value * 2,
-            };
+        deserialize: (reader): number => {
+        return reader.readU16();
         },
     })
-    public obj: ComplexObject;
-
-    constructor(obj: ComplexObject) {
-        this.obj = obj;
+    public number: number;
+    constructor(number?: number) {
+        this.number = number;
     }
 }
 
-const serialized = serialize(new TestStruct({ a: 2, b: 3 }));
-const deserialied = deserialize(
-    Buffer.from(serialized),
-    TestStruct
-);
-expect(deserialied.obj).toBeDefined();
-expect(deserialied.obj.a).toEqual(5);
-expect(deserialied.obj.b).toEqual(10);
+validate(TestStruct);
+const serialized = serialize(new TestStruct(3));
+const deserialied = deserialize(Buffer.from(serialized), TestStruct);
+expect(deserialied.number).toEqual(3);
 ```
 
 
@@ -267,23 +254,23 @@ class B2 extends A{
 
 ## Type Mappings
 
-| Borsh                 | TypeScript     |
-|-----------------------|----------------|
-| `u8` integer          | `number`       |
-| `u16` integer         | `number`       |
-| `u32` integer         | `number`       |
-| `u64` integer         | `BN`           |
-| `u128` integer        | `BN`           |
-| `u256` integer        | `BN`           |
-| `u512` integer        | `BN`           |
-| `f32` float           | N/A            |
-| `f64` float           | N/A            |
-| fixed-size byte array | `Uint8Array`   |
-| UTF-8 string          | `string`       |
-| option                | `null` or type |
-| map                   | N/A            |
-| set                   | N/A            |
-| structs               | `any`          |
+| Borsh                 | TypeScript          |
+|-----------------------|---------------------|
+| `u8` integer          | `number`            |
+| `u16` integer         | `number`            |
+| `u32` integer         | `number`            |
+| `u64` integer         | `bigint`            |
+| `u128` integer        | `bigint`            |
+| `u256` integer        | `bigint`            |
+| `u512` integer        | `bigint`            |
+| `f32` float           | N/A                 |
+| `f64` float           | N/A                 |
+| fixed-size byte array | `Uint8Array`        |
+| UTF-8 string          | `string`            |
+| option                | `undefined` or type |
+| map                   | N/A                 |
+| set                   | N/A                 |
+| structs               | `any`               |
 
 ## Contributing
 

@@ -1,4 +1,3 @@
-import BN from "bn.js";
 import { BinaryReader } from "../binary";
 import { BorshError } from "../error";
 import {
@@ -13,6 +12,7 @@ import {
   option,
   fixedArray,
 } from "../index";
+import BN from "bn.js";
 
 describe("struct", () => {
   test("multifield", () => {
@@ -21,9 +21,9 @@ describe("struct", () => {
       public a: number;
 
       @field({ type: "u64" })
-      public b: BN;
+      public b: bigint;
 
-      constructor(properties?: { a: number; b: BN }) {
+      constructor(properties?: { a: number; b: bigint }) {
         if (properties) {
           this.a = properties.a;
           this.b = properties.b;
@@ -44,13 +44,13 @@ describe("struct", () => {
       ],
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
-    const bn123 = new BN(123);
+    const bn123 = BigInt(123);
     const instance = new TestStruct({ a: 1, b: bn123 });
     const buf = serialize(instance);
     expect(buf).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
     const deserialized = deserialize(Buffer.from(buf), TestStruct);
     expect(deserialized.a).toEqual(1);
-    expect(deserialized.b.toNumber()).toEqual(123);
+    expect(deserialized.b).toEqual(BigInt(123));
     const bufAgain = serialize(deserialized);
     expect(bufAgain).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
   });
@@ -247,6 +247,102 @@ describe("arrays", () => {
   });
 });
 
+describe("number", () => {
+  test("u8", () => {
+    class Struct {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(3);
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(3);
+  });
+
+  test("u16", () => {
+    class Struct {
+      @field({ type: "u16" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(3);
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, 0]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(3);
+  });
+
+  test("u32", () => {
+    class Struct {
+      @field({ type: "u32" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(3);
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, 0, 0, 0]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(3);
+  });
+  test("u64", () => {
+    class Struct {
+      @field({ type: "u64" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(BigInt(3));
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, ...new Array(7).fill(0)]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(BigInt(3));
+  });
+
+  test("u128", () => {
+    class Struct {
+      @field({ type: "u128" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(BigInt(3));
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, ...new Array(15).fill(0)]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(BigInt(3));
+  });
+
+  test("u256", () => {
+    class Struct {
+      @field({ type: "u256" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(BigInt(3));
+    const buf = serialize(instance);
+    expect(buf).toEqual(Buffer.from([3, ...new Array(31).fill(0)]));
+    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(deserialized.a).toEqual(BigInt(3));
+  });
+});
 describe("enum", () => {
   test("enum base", () => {
     @variant(1)
@@ -730,8 +826,8 @@ describe("option", () => {
   test("field option", () => {
     class TestStruct {
       @field({ type: option("u8") })
-      public a: number | undefined;
-      constructor(a: number | undefined) {
+      public a?: number;
+      constructor(a: number) {
         this.a = a;
       }
     }
@@ -798,40 +894,25 @@ describe("override", () => {
     /**
      * Serialize field with custom serializer and deserializer
      */
-    interface ComplexObject {
-      a: number;
-      b: number;
-    }
     class TestStruct {
       @field({
-        serialize: (value: ComplexObject, writer) => {
-          writer.writeU16(value.a + value.b);
+        serialize: (value: number, writer) => {
+          writer.writeU16(value);
         },
-        deserialize: (reader): ComplexObject => {
-          const value = reader.readU16();
-          return {
-            a: value,
-            b: value * 2,
-          };
+        deserialize: (reader): number => {
+          return reader.readU16();
         },
       })
-      public obj: ComplexObject;
-      constructor(obj: ComplexObject) {
-        this.obj = obj;
+      public number: number;
+      constructor(number?: number) {
+        this.number = number;
       }
     }
 
     validate(TestStruct);
-    const serialized = serialize(new TestStruct({ a: 2, b: 3 }));
-    const deserialied = deserialize(
-      Buffer.from(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
-    expect(deserialied.obj).toBeDefined();
-    expect(deserialied.obj.a).toEqual(5);
-    expect(deserialied.obj.b).toEqual(10);
+    const serialized = serialize(new TestStruct(3));
+    const deserialied = deserialize(Buffer.from(serialized), TestStruct);
+    expect(deserialied.number).toEqual(3);
   });
 
   test("custom option", () => {

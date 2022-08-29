@@ -1,12 +1,13 @@
 const INITIAL_LENGTH = 1024;
-
-import BN from "bn.js";
+import { toBigIntLE, toBufferLE } from 'bigint-buffer';
 import { BorshError } from "./error";
 import * as encoding from "text-encoding-utf-8";
 
 const ResolvedTextDecoder =
   typeof TextDecoder !== "function" ? encoding.TextDecoder : TextDecoder;
 const textDecoder = new ResolvedTextDecoder("utf-8", { fatal: true });
+
+
 
 /// Binary encoder.
 export class BinaryWriter {
@@ -48,24 +49,24 @@ export class BinaryWriter {
     this.length += 4;
   }
 
-  public writeU64(value: number | BN) {
+  public writeU64(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(Buffer.from(new BN(value).toArray("le", 8)));
+    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 8))
   }
 
-  public writeU128(value: number | BN) {
+  public writeU128(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(Buffer.from(new BN(value).toArray("le", 16)));
+    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 16))
   }
 
-  public writeU256(value: number | BN) {
+  public writeU256(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(Buffer.from(new BN(value).toArray("le", 32)));
+    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 32))
   }
 
-  public writeU512(value: number | BN) {
+  public writeU512(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(Buffer.from(new BN(value).toArray("le", 64)));
+    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 64))
   }
 
   private writeBuffer(buffer: Buffer) {
@@ -164,27 +165,27 @@ export class BinaryReader {
   }
 
   @handlingRangeError
-  readU64(): BN {
+  readU64(): bigint {
     const buf = this.readBuffer(8);
-    return new BN(buf, "le");
+    return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU128(): BN {
+  readU128(): bigint {
     const buf = this.readBuffer(16);
-    return new BN(buf, "le");
+    return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU256(): BN {
+  readU256(): bigint {
     const buf = this.readBuffer(32);
-    return new BN(buf, "le");
+    return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU512(): BN {
+  readU512(): bigint {
     const buf = this.readBuffer(64);
-    return new BN(buf, "le");
+    return toBigIntLE(buf)
   }
 
   private readBuffer(len: number): Buffer {

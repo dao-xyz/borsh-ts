@@ -7,7 +7,7 @@
   ],
   "compilerOptions": {
     "lib": [
-      "es2019",
+      "ES2020",
       "DOM"
     ], /* Specify a set of bundled library declaration files that describe the target runtime environment. */
     "rootDir": "src", /* Specify the root folder within your source files. */
@@ -16,7 +16,7 @@
     /* Type Checking */
     "noImplicitAny": true, /* Enable error reporting for expressions and declarations with an implied `any` type.. */
     "skipLibCheck": true, /* Skip type checking all .d.ts files. */
-    "target": "es2019",
+    "target": "ES2020",
     "module": "esnext",
     "outDir": "lib/esm",
     "declaration": true,

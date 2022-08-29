@@ -1,4 +1,3 @@
-import bs58 from "bs58";
 import {
   FixedArrayKind,
   OptionKind,
@@ -16,15 +15,6 @@ export * from "./binary";
 export * from "./types";
 
 
-export function baseEncode(value: Uint8Array | string): string {
-  if (typeof value === "string") {
-    value = Buffer.from(value, "utf8");
-  }
-  return bs58.encode(Buffer.from(value));
-}
-export function baseDecode(value: string): Buffer {
-  return Buffer.from(bs58.decode(value));
-}
 
 function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -178,7 +168,6 @@ function deserializeField(
           reader
         );
       }
-
       return undefined;
     }
 
