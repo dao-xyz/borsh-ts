@@ -59,7 +59,7 @@ class SomeClass
 
 ...
 
-const value = new SomeClass({ x: 255, y: new BN(20), z: 'abc', q: [1, 2, 3] });
+const value = new SomeClass({ x: 255, y: BigInt(20), z: 'abc', q: [1, 2, 3] });
 
 // Serialize 
 const serialized = serialize(value); 
@@ -187,10 +187,10 @@ class TestStruct {
     // Override ser/der of the number
     @field({
         serialize: (value: number, writer) => {
-        writer.writeU16(value);
+            writer.writeU16(value);
         },
         deserialize: (reader): number => {
-        return reader.readU16();
+            return reader.readU16();
         },
     })
     public number: number;
