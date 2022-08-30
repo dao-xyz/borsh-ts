@@ -803,7 +803,7 @@ describe("enum", () => {
 
   test("enum string variant", () => {
     class Ape {
-      @field({ type: "String" })
+      @field({ type: "string" })
       name: string;
 
       constructor(name?: string) {
@@ -1214,12 +1214,12 @@ describe("Validation", () => {
     }
 
     class A extends Super {
-      @field({ type: "String" })
+      @field({ type: "string" })
       string: string;
     }
 
     class B extends Super {
-      @field({ type: "String" })
+      @field({ type: "string" })
       string: string;
     }
     expect(() => validate(Super)).toThrowError(BorshError);
@@ -1301,12 +1301,12 @@ describe("Validation", () => {
     }
 
     class A extends TestStruct {
-      @field({ type: "String" })
+      @field({ type: "string" })
       string: string = "A";
     }
 
     class B extends TestStruct {
-      @field({ type: "String" })
+      @field({ type: "string" })
       string: string = "B";
     }
     expect(() =>

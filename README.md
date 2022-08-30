@@ -42,7 +42,7 @@ class SomeClass
     @field({type: 'u64'})
     y: bigint
 
-    @field({type: 'String'})
+    @field({type: 'string'})
     z: string
 
     @field({type: vec('u32')})

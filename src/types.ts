@@ -40,7 +40,7 @@ export type FieldType =
   | "u512"
   | "f32"
   | "f64"
-  | "String"
+  | "string"
   | Constructor<any>
   | CustomField<any>
   | WrappedType;
