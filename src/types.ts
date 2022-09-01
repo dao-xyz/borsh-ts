@@ -28,9 +28,7 @@ export interface OverrideType<T> {
   serialize: (arg: T, writer: BinaryWriter) => void;
   deserialize: (reader: BinaryReader) => T;
 }
-
-export type FieldType =
-  | "bool"
+export type PrimitiveFieldType = "bool"
   | "u8"
   | "u16"
   | "u32"
@@ -41,12 +39,25 @@ export type FieldType =
   | "f32"
   | "f64"
   | "string"
+export type FieldType =
+  | PrimitiveFieldType
   | Constructor<any>
   | CustomField<any>
-  | WrappedType;
+  | MapKind
+  | WrappedType
 export type SimpleField = { type: FieldType; index?: number };
 export interface CustomField<T> extends OverrideType<T> {
   index?: number;
+}
+
+const dependenciesFromFieldType = (fieldType: FieldType): Constructor<any>[] | undefined => {
+  if (typeof fieldType === "function") return [fieldType];
+  if (fieldType instanceof WrappedType)
+    return fieldType.getDependencies(); // Recursive
+  if (fieldType instanceof MapKind) {
+    return fieldType.getDependencies(); // Recursive
+  }
+  return undefined;
 }
 
 export class WrappedType {
@@ -55,11 +66,8 @@ export class WrappedType {
     this.elementType = elementType;
   }
 
-  getDependency(): Constructor<any> | undefined {
-    if (typeof this.elementType === "function") return this.elementType;
-    if (this.elementType instanceof WrappedType)
-      return this.elementType.getDependency(); // Recursive
-    return undefined;
+  getDependencies(): Constructor<any>[] | undefined {
+    return dependenciesFromFieldType(this.elementType);
   }
 }
 
@@ -82,6 +90,33 @@ export class FixedArrayKind extends WrappedType {
 }
 export const fixedArray = (type: FieldType, length: number): FixedArrayKind => {
   return new FixedArrayKind(type, length);
+};
+
+export class MapKind {
+  key: PrimitiveFieldType
+  value: FieldType
+  constructor(key: PrimitiveFieldType, value: FieldType) {
+    this.key = key;
+    this.value = value;
+  }
+
+  getDependencies(): Constructor<any>[] | undefined {
+    const keyDependencies = dependenciesFromFieldType(this.key); // Recursive
+    const valueDependencies = dependenciesFromFieldType(this.value); // Recursive
+    if (!keyDependencies && !valueDependencies) {
+      return undefined;
+    }
+    if (keyDependencies && !valueDependencies) {
+      return keyDependencies;
+    }
+    if (valueDependencies && !keyDependencies) {
+      return valueDependencies;
+    }
+    return [...keyDependencies, ...valueDependencies]
+  }
+}
+export const map = (key: PrimitiveFieldType, value: FieldType): MapKind => {
+  return new MapKind(key, value);
 };
 
 export interface Field {
@@ -107,8 +142,13 @@ export class StructKind {
         throw new BorshError("Field: " + ix + " is missing specification");
       }
       if (field.type instanceof WrappedType) {
-        let dependency = field.type.getDependency();
-        if (dependency) ret.push(dependency);
+        let dependencies = field.type.getDependencies();
+        if (dependencies) {
+          dependencies.forEach(dependency => {
+            ret.push(dependency);
+
+          });
+        }
       } else if (typeof field.type === "function") {
         ret.push(field.type);
       }

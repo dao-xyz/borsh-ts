@@ -8,11 +8,24 @@ import {
   CustomField,
   extendingClasses,
   Constructor,
+  MapKind,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
 export * from "./binary";
 export * from "./types";
+
+const sortStringKeys = ([a]: [string, any], [b]: [string, any]) => String(a).localeCompare(b)
+const sortNumberKeys = ([a]: [bigint | number, any], [b]: [bigint | number, any]) => {
+  if (a > b) {
+    return 1;
+  } else if (a < b) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
 
 
 
@@ -62,6 +75,27 @@ export function serializeField(
       for (let i = 0; i < len; i++) {
         serializeField(null, value[i], fieldType.elementType, writer);
       }
+    } else if (fieldType instanceof MapKind) {
+      // sort fields by key
+      // assumes all values are of same type
+      const map = value as Map<any, any>;
+      let values: [any, any][] = [...map.entries()];
+      const len = values.length;
+      writer.writeU32(len);
+      if (len === 0) {
+        return;
+      }
+      const keyType = typeof values[0][0];
+      if (keyType !== 'bigint' && keyType !== 'number' && keyType !== 'string') {
+        throw new Error("Key type is not supported")
+      }
+      let sorter = keyType === 'string' ? sortStringKeys : sortNumberKeys;
+      values = values.sort(sorter);
+      for (const [mapKey, mapValue] of values) {
+        serializeField(fieldName, mapKey, fieldType.key, writer);
+        serializeField(fieldName, mapValue, fieldType.value, writer);
+      }
+
     } else {
       if (!checkClazzesCompatible(value.constructor, fieldType)) {
         throw new BorshError(`Field value of field ${fieldName} does not instance of expected Class ${getSuperMostClass(fieldType)}. Got: ${value.constructor.name}`)
@@ -155,6 +189,7 @@ function deserializeField(
       }
       return arr;
     }
+
     if (typeof fieldType["deserialize"] == "function") {
       return fieldType.deserialize(reader);
     }
@@ -170,7 +205,17 @@ function deserializeField(
       }
       return undefined;
     }
+    if (fieldType instanceof MapKind) {
+      let len = reader.readU32();
+      let map = new Map();
+      for (let i = 0; i < len; i++) {
+        const mapKey = deserializeField(null, fieldType.key, reader);
+        const mapValue = deserializeField(null, fieldType.value, reader);
+        map.set(mapKey, mapValue);
+      }
+      return map;
 
+    }
     return deserializeStruct(fieldType, reader);
   } catch (error) {
     if (error instanceof BorshError) {
