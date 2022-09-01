@@ -100,6 +100,11 @@ export class StructKind {
       this.fields = [];
     }
   }
+
+  static from(map: Map<Constructor<any>, { type: string, fields: any[] }>) {
+
+  }
+
   getDependencies(): Constructor<any>[] {
     let ret: Constructor<any>[] = [];
     this.fields.forEach((field, ix) => {

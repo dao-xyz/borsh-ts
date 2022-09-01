@@ -361,6 +361,7 @@ const setDependency = (ctor: Function, dependency: Function) => {
   if (dependencies.has(classPathKey) && key != undefined) {
     dependencies.delete(classPathKey)
   }
+
   if (key != undefined && dependencies.has(key)) {
     if (dependencies.get(key) == dependency) {
       // already added;
@@ -506,6 +507,47 @@ export const variant = (index: number | number[] | string) => {
 
   };
 };
+
+const convertLegacySchema = <T>(clazz: Constructor<T>, schemas: Map<any, { kind: string, fields?: any[], values?: [number, Constructor<any>][] }>): StructKind => {
+  const schema = schemas.get(clazz);
+  if (schema.kind == 'struct') {
+    const s = getSchema(clazz);
+    s.fields = schema.fields.map(f => { return { key: f[0], type: f[1] } });
+  }
+  if (schema.kind === 'enum') {
+    const virtualSuperClazz = {};
+    const enumVariants = schema.values.forEach(([index, value]) => {
+      const s = getSchema(value);
+      s.variant = index;
+      s.fields =
+        new StructKind({
+          variant: index,
+          fields: convertLegacySchema(value, schemas).fields
+        })
+    })
+
+    setDependency(virtualSuperClazz as Function,)
+    return new StructKind({ fields: schema.fields.map(f => { return { key: f[0], type: f[1] } }) })
+
+  }
+}
+export const addLegacySchema = <T>(schema: Map<any, { kind: string, fields?: any[], values: any[] }>) => {
+
+  schema.forEach((spec, clazz) => {
+    if (spec.kind === 'struct') {
+      const schema = getSchema(clazz);
+      schema.fields = spec.fields;
+    }
+    else if (spec.kind === 'enum') {
+      spec.values.map((index, target) => {
+        new StructKind({
+          variant: index,
+          fields:
+        })
+      })
+    }
+  });
+}
 
 export const getVariantIndex = (clazz: any): number | number[] | string | undefined => {
   return getOrCreateStructMeta(clazz).variant;
