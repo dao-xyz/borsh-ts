@@ -54,11 +54,11 @@ class SomeClass
     @field({type: option(vec('u32'))})
     q?: number[]
 
-    constructor(data?:SomeClass)
+    constructor(data?: SomeClass)
     {
         if(data)
         {
-            Object.assign(this,data)
+            Object.assign(this, data)
         }
     }
 }
@@ -98,6 +98,7 @@ class Super {}
 
 @variant(0)
 class Enum0 extends Super {
+
     @field({ type: "u8" })
     public a: number;
 
@@ -109,6 +110,7 @@ class Enum0 extends Super {
 
 @variant(1)
 class Enum1 extends Super {
+
     @field({ type: "u8" })
     public b: number;
 
@@ -119,6 +121,7 @@ class Enum1 extends Super {
 }
 
 class TestStruct {
+
     @field({ type: Super })
     public enum: Super;
 
