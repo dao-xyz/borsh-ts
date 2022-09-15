@@ -12,7 +12,6 @@ import {
   option,
   fixedArray,
 } from "../index";
-import BN from "bn.js";
 
 describe("struct", () => {
   test("multifield", () => {
@@ -47,12 +46,12 @@ describe("struct", () => {
     const bn123 = BigInt(123);
     const instance = new TestStruct({ a: 1, b: bn123 });
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
-    const deserialized = deserialize(Buffer.from(buf), TestStruct);
+    expect(buf).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(1);
     expect(deserialized.b).toEqual(BigInt(123));
     const bufAgain = serialize(deserialized);
-    expect(bufAgain).toEqual(Buffer.from([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    expect(bufAgain).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
   });
 
   test("struct fields", () => {
@@ -132,12 +131,12 @@ describe("bool", () => {
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const instance = new TestStruct({ a: true, b: false });
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([1, 0]));
-    const deserialized = deserialize(Buffer.from(buf), TestStruct);
+    expect(buf).toEqual(new Uint8Array([1, 0]));
+    const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(true);
     expect(deserialized.b).toEqual(false);
     const bufAgain = serialize(deserialized);
-    expect(bufAgain).toEqual(Buffer.from([1, 0]));
+    expect(bufAgain).toEqual(new Uint8Array([1, 0]));
   });
 });
 
@@ -156,8 +155,8 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
-    expect(buf).toEqual(Buffer.from([3, 0, 0, 0, 1, 2, 3]));
-    const deserialized = deserialize(Buffer.from(buf), TestStruct);
+    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
   });
 
@@ -175,8 +174,8 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
-    expect(buf).toEqual(Buffer.from([1, 2, 3]));
-    const deserialized = deserialize(Buffer.from(buf), TestStruct);
+    expect(buf).toEqual(new Uint8Array([1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
   });
 
@@ -208,7 +207,9 @@ describe("arrays", () => {
       }
     }
     validate(TestStruct);
-    expect(() => deserialize(Buffer.from([1, 2]), TestStruct)).toThrowError();
+    expect(() =>
+      deserialize(new Uint8Array([1, 2]), TestStruct)
+    ).toThrowError();
   });
 
   test("vec struct", () => {
@@ -241,8 +242,8 @@ describe("arrays", () => {
       new Element({ a: 3 }),
     ];
     const buf = serialize(new TestStruct({ a: arr }));
-    expect(buf).toEqual(Buffer.from([3, 0, 0, 0, 1, 2, 3]));
-    const deserialized = deserialize(Buffer.from(buf), TestStruct);
+    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(arr);
   });
 });
@@ -259,8 +260,8 @@ describe("number", () => {
     }
     const instance = new Struct(3);
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(3);
   });
 
@@ -275,8 +276,8 @@ describe("number", () => {
     }
     const instance = new Struct(3);
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, 0]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, 0]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(3);
   });
 
@@ -291,8 +292,8 @@ describe("number", () => {
     }
     const instance = new Struct(3);
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, 0, 0, 0]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(3);
   });
   test("u64", () => {
@@ -306,8 +307,8 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, ...new Array(7).fill(0)]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, ...new Array(7).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
 
@@ -322,8 +323,8 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, ...new Array(15).fill(0)]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, ...new Array(15).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
 
@@ -338,8 +339,8 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, ...new Array(31).fill(0)]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, ...new Array(31).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
 
@@ -354,8 +355,8 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([3, ...new Array(63).fill(0)]));
-    const deserialized = deserialize(Buffer.from(buf), Struct);
+    expect(buf).toEqual(new Uint8Array([3, ...new Array(63).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
 });
@@ -373,8 +374,8 @@ describe("enum", () => {
     const instance = new TestEnum(3);
     validate(TestEnum);
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([1, 3]));
-    const deserialized = deserialize(Buffer.from(buf), TestEnum);
+    expect(buf).toEqual(new Uint8Array([1, 3]));
+    const deserialized = deserialize(buf, TestEnum);
     expect(deserialized.a).toEqual(3);
   });
 
@@ -384,7 +385,7 @@ describe("enum", () => {
     const instance = new TestEnum();
     validate(TestEnum);
     const buf = serialize(instance);
-    expect(buf).toEqual(Buffer.from([1]));
+    expect(buf).toEqual(new Uint8Array([1]));
   });
 
   test("variant dependency is treaded as struct", () => {
@@ -448,10 +449,10 @@ describe("enum", () => {
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(Buffer.from([1, 4]));
+    expect(serialized).toEqual(new Uint8Array([1, 4]));
 
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       TestStruct,
       false,
       BinaryReader
@@ -496,10 +497,10 @@ describe("enum", () => {
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(Buffer.from([1, 4]));
+    expect(serialized).toEqual(new Uint8Array([1, 4]));
 
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       SuperSuper,
       false,
       BinaryReader
@@ -546,10 +547,10 @@ describe("enum", () => {
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(Buffer.from([1, 2, 3, 4, 5]));
+    expect(serialized).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
 
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       SuperSuper,
       false,
       BinaryReader
@@ -570,14 +571,14 @@ describe("enum", () => {
     }
 
     deserialize(
-      Buffer.from(serialize(new Clazz())),
+      new Uint8Array(serialize(new Clazz())),
       Clazz,
       false,
       BinaryReader
     );
 
     deserialize(
-      Buffer.from(serialize(new Clazz())),
+      new Uint8Array(serialize(new Clazz())),
       Super,
       false,
       BinaryReader
@@ -637,7 +638,7 @@ describe("enum", () => {
     }
     // we try to deserializ [0,0] into Struct, which shouldnot be possible since property is instance of ClazzB
     expect(() =>
-      deserialize(Buffer.from(Uint8Array.from([0, 0])), Struct)
+      deserialize(new Uint8Array(Uint8Array.from([0, 0])), Struct)
     ).toThrowError();
   });
 
@@ -655,14 +656,14 @@ describe("enum", () => {
     }
 
     deserialize(
-      Buffer.from(serialize(new Clazz())),
+      new Uint8Array(serialize(new Clazz())),
       Clazz,
       false,
       BinaryReader
     );
 
     deserialize(
-      Buffer.from(serialize(new Clazz())),
+      new Uint8Array(serialize(new Clazz())),
       Super,
       false,
       BinaryReader
@@ -701,10 +702,10 @@ describe("enum", () => {
     validate(Super);
 
     const serialized = serialize(new C1({ a: 1, b: 2 }));
-    expect(serialized).toEqual(Buffer.from([1, 2, 0]));
+    expect(serialized).toEqual(new Uint8Array([1, 2, 0]));
 
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       Super,
       false,
       BinaryReader
@@ -741,9 +742,9 @@ describe("enum", () => {
     expect(getSchema(Enum2)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(Buffer.from([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
+    expect(serialized).toEqual(new Uint8Array([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       TestStruct,
       false,
       BinaryReader
@@ -790,9 +791,9 @@ describe("enum", () => {
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(Buffer.from([1, 2, 4, 5]));
+    expect(serialized).toEqual(new Uint8Array([1, 2, 4, 5]));
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       TestStruct,
       false,
       BinaryReader
@@ -829,7 +830,7 @@ describe("enum", () => {
     let bytes = serialize(
       new HighCouncil([new Gorilla("Go"), new Orangutan("Ora")])
     );
-    let deserialized = deserialize(Buffer.from(bytes), HighCouncil);
+    let deserialized = deserialize(new Uint8Array(bytes), HighCouncil);
     expect(deserialized).toBeInstanceOf(HighCouncil);
     expect(deserialized.members[0]).toBeInstanceOf(Gorilla);
     expect(deserialized.members[0].name).toEqual("Go");
@@ -858,13 +859,13 @@ describe("option", () => {
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const bufSome = serialize(new TestStruct(123));
-    expect(bufSome).toEqual(Buffer.from([1, 123]));
-    const deserializedSome = deserialize(Buffer.from(bufSome), TestStruct);
+    expect(bufSome).toEqual(new Uint8Array([1, 123]));
+    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(123);
 
     const bufNone = serialize(new TestStruct(undefined));
-    expect(bufNone).toEqual(Buffer.from([0]));
-    const deserialized = deserialize(Buffer.from(bufNone), TestStruct);
+    expect(bufNone).toEqual(new Uint8Array([0]));
+    const deserialized = deserialize(new Uint8Array(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
   });
 
@@ -894,14 +895,42 @@ describe("option", () => {
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const bufSome = serialize(new TestStruct(new Element(123)));
-    expect(bufSome).toEqual(Buffer.from([1, 123]));
-    const deserializedSome = deserialize(Buffer.from(bufSome), TestStruct);
+    expect(bufSome).toEqual(new Uint8Array([1, 123]));
+    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(new Element(123));
 
     const bufNone = serialize(new TestStruct(undefined));
-    expect(bufNone).toEqual(Buffer.from([0]));
-    const deserialized = deserialize(Buffer.from(bufNone), TestStruct);
+    expect(bufNone).toEqual(new Uint8Array([0]));
+    const deserialized = deserialize(new Uint8Array(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
+  });
+});
+
+describe("string", () => {
+  test("field string", () => {
+    class TestStruct {
+      @field({ type: "string" })
+      public a: string;
+      constructor(a: string) {
+        this.a = a;
+      }
+    }
+    validate(TestStruct);
+    const expectedResult: StructKind = new StructKind({
+      fields: [
+        {
+          key: "a",
+          type: "string",
+        },
+      ],
+    });
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
+    const bufSome = serialize(new TestStruct("a string"));
+    expect(bufSome).toEqual(
+      new Uint8Array([8, 0, 0, 0, 97, 32, 115, 116, 114, 105, 110, 103])
+    );
+    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
+    expect(deserializedSome.a).toEqual("a string");
   });
 });
 
@@ -927,7 +956,7 @@ describe("override", () => {
 
     validate(TestStruct);
     const serialized = serialize(new TestStruct(3));
-    const deserialied = deserialize(Buffer.from(serialized), TestStruct);
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.number).toEqual(3);
   });
 
@@ -960,11 +989,14 @@ describe("override", () => {
       }
     }
     expect(
-      deserialize(Buffer.from(serialize(new TestStruct(undefined))), TestStruct)
-        .number
+      deserialize(
+        new Uint8Array(serialize(new TestStruct(undefined))),
+        TestStruct
+      ).number
     ).toBeUndefined();
     expect(
-      deserialize(Buffer.from(serialize(new TestStruct(1))), TestStruct).number
+      deserialize(new Uint8Array(serialize(new TestStruct(1))), TestStruct)
+        .number
     ).toEqual(1);
   });
 
@@ -994,9 +1026,9 @@ describe("override", () => {
 
     // with value
     const serialized = serialize(new TestStruct(123));
-    expect(serialized).toStrictEqual(Buffer.from([1, 123]));
+    expect(serialized).toStrictEqual(new Uint8Array([1, 123]));
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       TestStruct,
       false,
       BinaryReader
@@ -1005,7 +1037,7 @@ describe("override", () => {
 
     // without value
     const serializedNone = serialize(new TestStruct(undefined));
-    expect(serializedNone).toStrictEqual(Buffer.from([0]));
+    expect(serializedNone).toStrictEqual(new Uint8Array([0]));
   });
 });
 
@@ -1040,7 +1072,7 @@ describe("order", () => {
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const serialized = serialize(new TestStruct(2, 3));
     const deserialied = deserialize(
-      Buffer.from(serialized),
+      new Uint8Array(serialized),
       TestStruct,
       false,
       BinaryReader
@@ -1121,9 +1153,9 @@ describe("Validation", () => {
     const bytes = Uint8Array.from([1, 0]); // has an extra 0
     validate(TestStruct);
     expect(() =>
-      deserialize(Buffer.from(bytes), TestStruct, false)
+      deserialize(new Uint8Array(bytes), TestStruct, false)
     ).toThrowError(BorshError);
-    expect(deserialize(Buffer.from(bytes), TestStruct, true).a).toEqual(1);
+    expect(deserialize(new Uint8Array(bytes), TestStruct, true).a).toEqual(1);
   });
 
   test("variant conflict, index", () => {
@@ -1310,7 +1342,7 @@ describe("Validation", () => {
       string: string = "B";
     }
     expect(() =>
-      deserialize(Buffer.from(serialize(new A())), TestStruct)
+      deserialize(new Uint8Array(serialize(new A())), TestStruct)
     ).toThrowError(BorshError);
   });
 
