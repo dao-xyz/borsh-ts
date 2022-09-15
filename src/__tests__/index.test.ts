@@ -1354,6 +1354,7 @@ describe("Validation", () => {
     // serialization could in practice work, but would be meaningless by thisk
     expect(() => serialize(new Clazz(new Other()))).toThrow(BorshError);
   });
+
   test("error for non optimized code on deserialization", () => {
     class TestStruct {
       constructor() {}
@@ -1413,5 +1414,23 @@ describe("Validation", () => {
     }
     expect(() => validate(TestStruct)).toThrowError(BorshError);
     validate(TestStruct, true); // Should be ok since we allow undefined
+  });
+});
+
+describe("compability", () => {
+  test("buffer compat", () => {
+    class Clazz {
+      @field({ type: "string" })
+      string: string;
+
+      constructor(string?: string) {
+        this.string = string;
+      }
+    }
+    const ser = serialize(new Clazz("hello"));
+    const derA = deserialize(ser, Clazz);
+    const derB = deserialize(Buffer.from(ser), Clazz);
+    expect(derA.string).toEqual("hello");
+    expect(derB.string).toEqual(derA.string);
   });
 });
