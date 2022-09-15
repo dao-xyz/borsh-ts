@@ -64,7 +64,7 @@ export function serializeField(
       }
     } else {
       if (!checkClazzesCompatible(value.constructor, fieldType)) {
-        throw new BorshError(`Field value of field ${fieldName} does not instance of expected Class ${getSuperMostClass(fieldType)}. Got: ${value.constructor.name}`)
+        throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${value.constructor.name}`)
       }
       serializeStruct(value, writer);
     }
@@ -313,7 +313,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
  * @returns
  */
 export function deserialize<T>(
-  buffer: Buffer,
+  buffer: Uint8Array,
   classType: { new(args: any): T },
   unchecked: boolean = false,
   Reader = BinaryReader
@@ -332,7 +332,7 @@ export function deserialize<T>(
 /// Deserializes object from bytes using schema, without checking the length read
 export function deserializeUnchecked<T>(
   classType: { new(args: any): T },
-  buffer: Buffer,
+  buffer: Uint8Array,
   Reader = BinaryReader
 ): T {
   const reader = new Reader(buffer);

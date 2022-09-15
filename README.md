@@ -45,8 +45,8 @@ class SomeClass
     @field({type: 'string'})
     z: string
 
-    @field({type: vec('u32')})
-    q: number[]
+    @field({type: option(vec('u32'))})
+    q?: number[]
 
     constructor(data?:SomeClass)
     {
@@ -65,7 +65,7 @@ const value = new SomeClass({ x: 255, y: BigInt(20), z: 'abc', q: [1, 2, 3] });
 const serialized = serialize(value); 
 
 // Deserialize
-const deserialized = deserialize(Buffer.from(serialized),SomeClass);
+const deserialized = deserialize(serialized,SomeClass);
 ```
 
 In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
@@ -201,7 +201,7 @@ class TestStruct {
 
 validate(TestStruct);
 const serialized = serialize(new TestStruct(3));
-const deserialied = deserialize(Buffer.from(serialized), TestStruct);
+const deserialied = deserialize(serialized, TestStruct);
 expect(deserialied.number).toEqual(3);
 ```
 
