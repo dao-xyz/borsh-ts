@@ -22,7 +22,7 @@ export class BinaryWriter {
   }
 
   maybeResize() {
-    if (this.buf.byteLength < 16 + this.length) {
+    if (this.buf.byteLength < 64 + this.length) {
       const newArr = new Uint8Array(this.buf.byteLength + INITIAL_LENGTH);
       newArr.set(new Uint8Array(this.buf.buffer));
       newArr.set(new Uint8Array(INITIAL_LENGTH), this.buf.byteLength)
@@ -136,6 +136,14 @@ export class BinaryReader {
   offset: number;
 
   public constructor(buf: Uint8Array) {
+    if (buf.constructor !== Uint8Array) {
+      if (buf instanceof Uint8Array) {
+        buf = new Uint8Array(buf);
+      }
+      else {
+        throw new BorshError("Expecing Uint8Array, instead got: " + buf["constructor"]?.["name"])
+      }
+    }
     this.buf = new DataView(buf.buffer);
     this.offset = 0;
   }
