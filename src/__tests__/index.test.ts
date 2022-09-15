@@ -934,6 +934,33 @@ describe("string", () => {
   });
 });
 
+describe("bool", () => {
+  test("field bolean", () => {
+    class TestStruct {
+      @field({ type: "bool" })
+      public a: boolean;
+
+      constructor(a: boolean) {
+        this.a = a;
+      }
+    }
+    validate(TestStruct);
+    const expectedResult: StructKind = new StructKind({
+      fields: [
+        {
+          key: "a",
+          type: "bool",
+        },
+      ],
+    });
+    expect(getSchema(TestStruct)).toEqual(expectedResult);
+    const bufSome = serialize(new TestStruct(true));
+    expect(bufSome).toEqual(new Uint8Array([1]));
+    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
+    expect(deserializedSome.a).toEqual(true);
+  });
+});
+
 describe("override", () => {
   test("serialize/deserialize", () => {
     /**
