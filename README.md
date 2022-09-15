@@ -32,6 +32,7 @@ import {
   field,
   variant,
   vec,
+  options
 } from "@dao-xyz/borsh";
 
 class SomeClass 
