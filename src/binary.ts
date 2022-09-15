@@ -32,7 +32,7 @@ export class BinaryWriter {
 
   public writeBool(value: boolean) {
     this.maybeResize();
-    this.buf.setUint8(value ? 1 : 0, this.length);
+    this.buf.setUint8(this.length, value ? 1 : 0);
     this.length += 1;
   }
 
