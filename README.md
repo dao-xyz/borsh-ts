@@ -65,7 +65,7 @@ class SomeClass
 
 ...
 
-const value = new SomeClass({ x: 255, y: BigInt(20), z: 'abc', q: [1, 2, 3] });
+const value = new SomeClass({ x: 255, y: 20n, z: 'abc', q: [1, 2, 3] });
 
 // Serialize 
 const serialized = serialize(value); 
@@ -238,8 +238,9 @@ validate([TestStruct])
 ```
 
 ## Inheritance
-Schema generation is supported if deserialization is deterministic
-e.g.
+Schema generation is supported if deserialization is deterministic. In other words, all classes extending some super class needs to use discriminators/variants of the same type. 
+
+Example:
 ```typescript 
 class A {
     @field({type: 'number'})

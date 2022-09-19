@@ -15,8 +15,8 @@ export function toBigIntLE(buf: Uint8Array): bigint {
 
 export function toBufferLE(num: bigint, width: number): Uint8Array {
     const hex = num.toString(16);
-    const buffer =
-        Buffer.from(hex.padStart(width * 2, '0').slice(0, width * 2), 'hex');
+    const padded = hex.padStart(width * 2, '0').slice(0, width * 2);
+    const buffer = Uint8Array.from(padded.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
     buffer.reverse();
     return buffer;
 }

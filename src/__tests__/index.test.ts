@@ -337,7 +337,7 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(BigInt(3));
+    const instance = new Struct(3n);
     const buf = serialize(instance);
     expect(buf).toEqual(new Uint8Array([3, ...new Array(31).fill(0)]));
     const deserialized = deserialize(buf, Struct);
