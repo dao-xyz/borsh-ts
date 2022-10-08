@@ -145,7 +145,7 @@ export class BinaryReader {
       }
     }
     this.buf = new DataView(buf.buffer);
-    this.offset = 0;
+    this.offset = buf.byteOffset;
   }
 
   @handlingRangeError
