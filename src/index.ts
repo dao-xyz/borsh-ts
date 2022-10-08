@@ -304,6 +304,17 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
 
 }
 
+const intoUint8Array = (buf: Uint8Array) => {
+  if (buf.constructor !== Uint8Array) {
+    if (buf instanceof Uint8Array) {
+      buf = new Uint8Array(buf);
+    }
+    else {
+      throw new BorshError("Expecing Uint8Array, instead got: " + buf["constructor"]?.["name"])
+    }
+  }
+  return buf;
+}
 /**
  * /// Deserializes object from bytes using schema.
  * @param buffer, data
@@ -318,9 +329,10 @@ export function deserialize<T>(
   unchecked: boolean = false,
   Reader = BinaryReader
 ): T {
+  buffer = intoUint8Array(buffer);
   const reader = new Reader(buffer);
   const result = deserializeStruct(classType, reader);
-  if (!unchecked && reader.offset < buffer.length) {
+  if (!unchecked && reader.offset !== buffer.byteOffset + buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader.offset
       } bytes after deserialized data`
@@ -335,6 +347,7 @@ export function deserializeUnchecked<T>(
   buffer: Uint8Array,
   Reader = BinaryReader
 ): T {
+  buffer = intoUint8Array(buffer);
   const reader = new Reader(buffer);
   return deserializeStruct(classType, reader);
 }

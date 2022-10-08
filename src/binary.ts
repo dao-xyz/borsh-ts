@@ -136,14 +136,6 @@ export class BinaryReader {
   offset: number;
 
   public constructor(buf: Uint8Array) {
-    if (buf.constructor !== Uint8Array) {
-      if (buf instanceof Uint8Array) {
-        buf = new Uint8Array(buf);
-      }
-      else {
-        throw new BorshError("Expecing Uint8Array, instead got: " + buf["constructor"]?.["name"])
-      }
-    }
     this.buf = new DataView(buf.buffer);
     this.offset = buf.byteOffset;
   }
