@@ -94,7 +94,7 @@ For more examples, see the [tests](./src/__tests__index.test.ts).
 **Enum, with 2 variants** 
 
 ```typescript
-class Super {}
+abstract class Super {}
 
 @variant(0)
 class Enum0 extends Super {
