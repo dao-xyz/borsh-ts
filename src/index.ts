@@ -8,7 +8,7 @@ import {
   CustomField,
   extendingClasses,
   Constructor,
-  AbstractConstructor,
+  AbstractType,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
@@ -324,7 +324,7 @@ const intoUint8Array = (buf: Uint8Array) => {
  */
 export function deserialize<T>(
   buffer: Uint8Array,
-  classType: Constructor<T> | AbstractConstructor<T>,
+  classType: Constructor<T> | AbstractType<T>,
   unchecked: boolean = false,
   Reader = BinaryReader
 ): T {
