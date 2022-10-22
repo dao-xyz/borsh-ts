@@ -407,7 +407,7 @@ const getSuperMostClass = (clazz: Constructor<any>) => {
  * @param clazzB 
  * @returns true if A inherit B or B inherit A or A == B, else false
  */
-const checkClazzesCompatible = (clazzA: Constructor<any>, clazzB: Constructor<any>) => {
+const checkClazzesCompatible = (clazzA: Constructor<any> | AbstractType<any>, clazzB: Constructor<any> | AbstractType<any>) => {
   return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
 
