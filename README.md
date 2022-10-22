@@ -239,13 +239,15 @@ class B2 extends A{
 
 ```
 
-# Discriminator
+## Discriminator
 It is possible to resolve the discriminator without serializing a class completely
 ```typescript
 import { getDiscriminator} from '@dao-xyz/borsh'
+
 @variant([1, 2])
 class A { }
 class B extends A { }
+
 @variant(3)
 class C extends B { }
 
