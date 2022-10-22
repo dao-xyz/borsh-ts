@@ -8,13 +8,12 @@ import {
   CustomField,
   extendingClasses,
   Constructor,
+  AbstractConstructor,
 } from "./types";
 import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
 export * from "./binary";
 export * from "./types";
-
-
 
 function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -207,7 +206,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
   }
 
 
-  // Polymorphic serialization, i.e. reversed prototype iteration using descriminators
+  // Polymorphic serialization, i.e. reversed prototype iteration using discriminators
   let once = false;
   let currClazz = clazz;
   while ((getSchema(currClazz) || getDependencies(currClazz).size > 0)) {
@@ -325,7 +324,7 @@ const intoUint8Array = (buf: Uint8Array) => {
  */
 export function deserialize<T>(
   buffer: Uint8Array,
-  classType: { new(args: any): T },
+  classType: Constructor<T> | AbstractConstructor<T>,
   unchecked: boolean = false,
   Reader = BinaryReader
 ): T {
@@ -473,9 +472,6 @@ const setSchema = (ctor: Function, schema: StructKind) => {
 }
 
 export const getSchema = (ctor: Function): StructKind => {
-  if (ctor.prototype == undefined) {
-    const t = 123;
-  }
   return ctor.prototype.constructor["_borsh_schema_" + ctor.name];
 }
 
@@ -649,4 +645,38 @@ const validateVariantAreCompatible = (a: number | number[] | string, b: number |
     }
   }
   return true;
+}
+
+export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
+  const schemas = getSchemasBottomUp(constructor);
+  // assume ordered
+  const writer = new BinaryWriter();
+  for (let i = 0; i < schemas.length; i++) {
+    const clazz = schemas[i];
+    if (i !== schemas.length - 1 && clazz.schema.fields.length > 0) {
+      throw new BorshError("Discriminator can not be resolved for inheritance where super class contains fields, undefined behaviour")
+    }
+    const variant = clazz.schema.variant;
+    if (variant == undefined) {
+      continue;
+    }
+    if (typeof variant === 'string') {
+      writer.writeString(variant)
+    }
+    else if (typeof variant === 'number') {
+      writer.writeU8(variant)
+    }
+    else if (Array.isArray(variant)) {
+      variant.forEach((v) => {
+        writer.writeU8(v)
+      })
+    }
+    else {
+      throw new BorshError("Can not resolve discriminator for variant with type: " + (typeof variant))
+    }
+
+  }
+
+  return writer.toArray();
+
 }

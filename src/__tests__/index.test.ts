@@ -11,6 +11,7 @@ import {
   vec,
   option,
   fixedArray,
+  getDiscriminator,
 } from "../index";
 
 describe("struct", () => {
@@ -669,6 +670,27 @@ describe("enum", () => {
       BinaryReader
     );
   });
+  test("abstract class as super class", () => {
+    abstract class A {
+      @field({ type: "u8" })
+      public number: number;
+      constructor(number: number) {
+        this.number = number;
+      }
+    }
+    class AA extends A {}
+    abstract class B {
+      @field({ type: A })
+      public a: A;
+      constructor(a: A) {
+        this.a = a;
+      }
+    }
+    class BB extends B {}
+    const b = new BB(new AA(123));
+
+    expect(deserialize(serialize(b), B).a.number).toEqual(123);
+  });
 
   test("inheritance without variant", () => {
     class Super {}
@@ -1166,6 +1188,46 @@ describe("order", () => {
   });
 });
 
+describe("discriminator", () => {
+  it("can resolve", () => {
+    @variant([1, 2])
+    class A {}
+    class B extends A {}
+    @variant(3)
+    class C extends B {}
+
+    @variant("abc")
+    class D extends C {
+      @field({ type: "string" })
+      string: string = "string";
+    }
+
+    const discriminator = getDiscriminator(D);
+    expect(discriminator).toEqual(
+      new Uint8Array([1, 2, 3, 3, 0, 0, 0, 97, 98, 99])
+    );
+  });
+  it("will reject for undefined behahiour, with super variant", () => {
+    @variant([1, 2])
+    class A {
+      @field({ type: "string" })
+      string: string = "string";
+    }
+    @variant(3)
+    class B extends A {}
+    expect(() => getDiscriminator(B)).toThrowError(BorshError);
+  });
+
+  it("will reject for undefined behahiour, without super variant", () => {
+    class A {
+      @field({ type: "string" })
+      string: string = "string";
+    }
+    @variant(3)
+    class B extends A {}
+    expect(() => getDiscriminator(B)).toThrowError(BorshError);
+  });
+});
 describe("Validation", () => {
   test("padding checked/unchecked", () => {
     class TestStruct {

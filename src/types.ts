@@ -5,6 +5,7 @@ import { BorshError } from "./error";
  * Class with constructor
  */
 export type Constructor<T> = new (...args: any[]) => T;
+export type AbstractConstructor<T> = Function & { prototype: T }
 
 
 export const extendingClasses = (clazz: any): any[] => {
@@ -42,6 +43,7 @@ export type FieldType =
   | "f64"
   | "string"
   | Constructor<any>
+  | AbstractConstructor<any>
   | CustomField<any>
   | WrappedType;
 export type SimpleField = { type: FieldType; index?: number };
@@ -55,7 +57,7 @@ export class WrappedType {
     this.elementType = elementType;
   }
 
-  getDependency(): Constructor<any> | undefined {
+  getDependency(): Constructor<any> | AbstractConstructor<any> | undefined {
     if (typeof this.elementType === "function") return this.elementType;
     if (this.elementType instanceof WrappedType)
       return this.elementType.getDependency(); // Recursive
@@ -100,8 +102,8 @@ export class StructKind {
       this.fields = [];
     }
   }
-  getDependencies(): Constructor<any>[] {
-    let ret: Constructor<any>[] = [];
+  getDependencies(): (Constructor<any> | AbstractConstructor<any>)[] {
+    let ret: (Constructor<any> | AbstractConstructor<any>)[] = [];
     this.fields.forEach((field, ix) => {
       if (!field) {
         throw new BorshError("Field: " + ix + " is missing specification");

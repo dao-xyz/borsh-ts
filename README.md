@@ -215,28 +215,6 @@ expect(deserialied.number).toEqual(3);
 ```
 
 
-**Explicit serialization order of fields**
-
-```typescript
-class TestStruct {
-    @field({ type: 'u8', index: 1 })
-    public a: number;
-
-
-    @field({ type: 'u8', index: 0 })
-    public b: number;
-}
-```
-
-This will make *b* serialized into the buffer before *a*.
-
-## Validation
-
-You can validate that classes have been decorated correctly: 
-```typescript
-validate([TestStruct])
-```
-
 ## Inheritance
 Schema generation is supported if deserialization is deterministic. In other words, all classes extending some super class needs to use discriminators/variants of the same type. 
 
@@ -260,6 +238,43 @@ class B2 extends A{
 }
 
 ```
+
+# Discriminator
+It is possible to resolve the discriminator without serializing a class completely
+```typescript
+import { getDiscriminator} from '@dao-xyz/borsh'
+@variant([1, 2])
+class A { }
+class B extends A { }
+@variant(3)
+class C extends B { }
+
+const discriminator = getDiscriminator(C);
+expect(discriminator).toEqual(new Uint8Array([1, 2, 3]));
+```
+
+**Explicit serialization order of fields**
+
+```typescript
+class TestStruct {
+    @field({ type: 'u8', index: 1 })
+    public a: number;
+
+
+    @field({ type: 'u8', index: 0 })
+    public b: number;
+}
+```
+
+This will make *b* serialized into the buffer before *a*.
+
+## Validation
+
+You can validate that classes have been decorated correctly: 
+```typescript
+validate([TestStruct])
+```
+
 
 
 ## Type Mappings
