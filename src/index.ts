@@ -34,7 +34,7 @@ export function serializeField(
       if (fieldType instanceof OptionKind) {
         writer.writeU8(0);
       } else {
-        throw new BorshError(`Trying to serialize a null value but field ${fieldName} but field type is not of type 'option(...)' but is: ${fieldType}`)
+        throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
       }
     }
     else if (fieldType instanceof OptionKind) {

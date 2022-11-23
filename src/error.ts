@@ -9,6 +9,6 @@ export class BorshError extends Error {
 
   addToFieldPath(fieldName: string) {
     this.fieldPath.splice(0, 0, fieldName);
-    this.message = this.originalMessage + ": " + this.fieldPath.join(".");
+    this.message = this.originalMessage + ". Error originated at field path: " + this.fieldPath.join(".");
   }
 }

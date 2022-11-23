@@ -1269,6 +1269,33 @@ describe("Validation", () => {
     expect(() => classDef()).toThrowError(BorshError);
   });
 
+  test("undefined struct error", () => {
+    class Value {
+      constructor() {}
+    }
+
+    class Container {
+      @field({ type: Value })
+      v: Value;
+    }
+
+    expect(() => serialize(new Container())).toThrowError(BorshError);
+    expect(() => serialize(new Container())).toThrow(
+      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "Value". Most likely you have forgotten to assign this value before serializing. Error originated at field path: v'
+    );
+  });
+  test("undefined number error", () => {
+    class Container {
+      @field({ type: "u64" })
+      v: number;
+    }
+
+    expect(() => serialize(new Container())).toThrowError(BorshError);
+    expect(() => serialize(new Container())).toThrow(
+      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "u64". Most likely you have forgotten to assign this value before serializing. Error originated at field path: v'
+    );
+  });
+
   test("variant type conflict", () => {
     class Super {
       constructor() {}
