@@ -14,6 +14,7 @@ import { BorshError } from "./error";
 import { BinaryWriter, BinaryReader } from "./binary";
 export * from "./binary";
 export * from "./types";
+export * from './error';
 
 function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -296,7 +297,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
     throw new BorshError(`Unexpected schema ${clazz.constructor.name}`);
   }
   if (!checkClazzesCompatible(currClazz, targetClazz)) {
-    throw new BorshError(`Deserialization of ${targetClazz} yielded another Class: ${clazz} which are not compatible`);
+    throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${clazz?.name || clazz} which are not compatible`);
 
   }
   return Object.assign(new currClazz(), result);
