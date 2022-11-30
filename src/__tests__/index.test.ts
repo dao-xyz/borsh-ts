@@ -1,4 +1,3 @@
-import { BinaryReader } from "../binary";
 import { BorshError } from "../error";
 import {
   deserialize,
@@ -15,6 +14,38 @@ import {
 } from "../index";
 
 describe("struct", () => {
+  test("constructor is not called", () => {
+    let constructorInvokation = 0;
+    class TestStruct {
+      @field({ type: "u8" })
+      a: number;
+      constructor(a: number) {
+        this.a = a;
+        constructorInvokation += 1;
+      }
+    }
+    const a = new TestStruct(123);
+    expect(constructorInvokation).toEqual(1);
+    deserialize(serialize(a), TestStruct);
+    expect(constructorInvokation).toEqual(1);
+  });
+
+  test("constructor is not called if optioned", () => {
+    let constructorInvokation = 0;
+    class TestStruct {
+      @field({ type: "u8" })
+      a: number;
+      constructor(a: number) {
+        this.a = a;
+        constructorInvokation += 1;
+      }
+    }
+
+    const a = new TestStruct(123);
+    expect(constructorInvokation).toEqual(1);
+    deserialize(serialize(a), TestStruct, { construct: true });
+    expect(constructorInvokation).toEqual(2);
+  });
   test("multifield", () => {
     class TestStruct {
       @field({ type: "u8" })
@@ -469,12 +500,7 @@ describe("enum", () => {
     const serialized = serialize(instance);
     expect(serialized).toEqual(new Uint8Array([1, 4]));
 
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum1);
     expect((deserialied.enum as Enum1).b).toEqual(4);
   });
@@ -517,12 +543,7 @@ describe("enum", () => {
     const serialized = serialize(instance);
     expect(serialized).toEqual(new Uint8Array([1, 4]));
 
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      SuperSuper,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
     expect(deserialied).toBeInstanceOf(Enum1);
     expect((deserialied as Enum1).b).toEqual(4);
   });
@@ -567,12 +588,7 @@ describe("enum", () => {
     const serialized = serialize(instance);
     expect(serialized).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
 
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      SuperSuper,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
     expect(deserialied).toBeInstanceOf(Enum1);
     expect((deserialied as Enum1).b).toEqual(5);
   });
@@ -588,19 +604,9 @@ describe("enum", () => {
       }
     }
 
-    deserialize(
-      new Uint8Array(serialize(new Clazz())),
-      Clazz,
-      false,
-      BinaryReader
-    );
+    deserialize(new Uint8Array(serialize(new Clazz())), Clazz);
 
-    deserialize(
-      new Uint8Array(serialize(new Clazz())),
-      Super,
-      false,
-      BinaryReader
-    );
+    deserialize(new Uint8Array(serialize(new Clazz())), Super);
   });
 
   test("extended enum inheritance variants, serialization target does matter for fields", () => {
@@ -673,19 +679,9 @@ describe("enum", () => {
       }
     }
 
-    deserialize(
-      new Uint8Array(serialize(new Clazz())),
-      Clazz,
-      false,
-      BinaryReader
-    );
+    deserialize(new Uint8Array(serialize(new Clazz())), Clazz);
 
-    deserialize(
-      new Uint8Array(serialize(new Clazz())),
-      Super,
-      false,
-      BinaryReader
-    );
+    deserialize(new Uint8Array(serialize(new Clazz())), Super);
   });
   test("abstract class as super class", () => {
     abstract class A {
@@ -743,12 +739,7 @@ describe("enum", () => {
     const serialized = serialize(new C1({ a: 1, b: 2 }));
     expect(serialized).toEqual(new Uint8Array([1, 2, 0]));
 
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      Super,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), Super);
     expect(deserialied).toBeInstanceOf(C1);
     expect((deserialied as C1).a).toEqual(1);
     expect((deserialied as C1).b).toEqual(2);
@@ -782,12 +773,7 @@ describe("enum", () => {
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
     expect(serialized).toEqual(new Uint8Array([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum2);
     expect((deserialied.enum as Enum2).a).toEqual(3);
   });
@@ -831,12 +817,7 @@ describe("enum", () => {
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
     expect(serialized).toEqual(new Uint8Array([1, 2, 4, 5]));
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum1);
     expect((deserialied.enum as Enum0).a).toEqual(5);
   });
@@ -1093,12 +1074,7 @@ describe("override", () => {
     // with value
     const serialized = serialize(new TestStruct(123));
     expect(serialized).toStrictEqual(new Uint8Array([1, 123]));
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.number).toEqual(123);
 
     // without value
@@ -1137,12 +1113,7 @@ describe("order", () => {
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const serialized = serialize(new TestStruct(2, 3));
-    const deserialied = deserialize(
-      new Uint8Array(serialized),
-      TestStruct,
-      false,
-      BinaryReader
-    );
+    const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied).toBeDefined();
     expect(deserialied.a).toEqual(2);
     expect(deserialied.b).toEqual(3);
@@ -1258,10 +1229,12 @@ describe("Validation", () => {
 
     const bytes = Uint8Array.from([1, 0]); // has an extra 0
     validate(TestStruct);
-    expect(() =>
-      deserialize(new Uint8Array(bytes), TestStruct, false)
-    ).toThrowError(BorshError);
-    expect(deserialize(new Uint8Array(bytes), TestStruct, true).a).toEqual(1);
+    expect(() => deserialize(new Uint8Array(bytes), TestStruct)).toThrowError(
+      BorshError
+    );
+    expect(
+      deserialize(new Uint8Array(bytes), TestStruct, { unchecked: true }).a
+    ).toEqual(1);
   });
 
   test("variant conflict, index", () => {

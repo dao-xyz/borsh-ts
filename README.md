@@ -54,12 +54,9 @@ class SomeClass
     @field({type: option(vec('u32'))})
     q?: number[]
 
-    constructor(data?: SomeClass)
+    constructor(data: SomeClass)
     {
-        if(data)
-        {
-            Object.assign(this, data)
-        }
+       Object.assign(this, data)
     }
 }
 
@@ -74,20 +71,6 @@ const serialized = serialize(value);
 const deserialized = deserialize(serialized,SomeClass);
 ```
 
-In order for 'SomeClass' be deserialized into, it has to support empty constructor, i. e.
-
-```typescript
-class SomeClass
-{
-    constructor(data = undefined)
-    {
-        if(data)
-        {
-            ...
-        }
-    }
-}
-```
 ## Examples of schema generation using decorators
 For more examples, see the [tests](./src/__tests__index.test.ts).
 
@@ -203,7 +186,7 @@ class TestStruct {
         },
     })
     public number: number;
-    constructor(number?: number) {
+    constructor(number: number) {
         this.number = number;
     }
 }

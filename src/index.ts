@@ -137,7 +137,8 @@ export function serialize(
 function deserializeField(
   fieldName: string,
   fieldType: any,
-  reader: BinaryReader
+  reader: BinaryReader,
+  options: { construct?: boolean }
 ): any {
   try {
     if (typeof fieldType === "string") {
@@ -155,7 +156,7 @@ function deserializeField(
           : reader.u32();
       let arr = new Array(len);
       for (let i = 0; i < len; i++) {
-        arr[i] = deserializeField(null, fieldType.elementType, reader);
+        arr[i] = deserializeField(null, fieldType.elementType, reader, options);
       }
       return arr;
     }
@@ -169,13 +170,14 @@ function deserializeField(
         return deserializeField(
           fieldName,
           fieldType.elementType,
-          reader
+          reader,
+          options
         );
       }
       return undefined;
     }
 
-    return deserializeStruct(fieldType, reader);
+    return deserializeStruct(fieldType, reader, options);
   } catch (error) {
     if (error instanceof BorshError) {
       error.addToFieldPath(fieldName);
@@ -184,7 +186,7 @@ function deserializeField(
   }
 }
 
-function deserializeStruct(targetClazz: any, reader: BinaryReader) {
+function deserializeStruct(targetClazz: any, reader: BinaryReader, options: { construct?: boolean }) {
   if (typeof targetClazz.borshDeserialize === "function") {
     return targetClazz.borshDeserialize(reader);
   }
@@ -229,7 +231,8 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
         result[field.key] = deserializeField(
           field.key,
           field.type,
-          reader
+          reader,
+          options
         );
       }
     }
@@ -304,7 +307,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
     throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${clazz?.name || clazz} which are not compatible`);
 
   }
-  return Object.assign(new currClazz(), result);
+  return Object.assign(options.construct ? new currClazz() : Object.create(currClazz.prototype), result);
 
 }
 
@@ -319,24 +322,29 @@ const intoUint8Array = (buf: Uint8Array) => {
   }
   return buf;
 }
+
 /**
  * /// Deserializes object from bytes using schema.
- * @param buffer, data
- * @param classType, target Class
- * @param unchecked, if true then any remaining bytes after deserialization will be ignored
- * @param Reader, optional custom reader
+ * @param buffer data
+ * @param classType target Class
+ * @param options options
+ * @param options.unchecked if true then any remaining bytes after deserialization will be ignored
+ * @param options.construct if true, constructors will be invoked on deserialization
  * @returns
  */
+
 export function deserialize<T>(
   buffer: Uint8Array,
   classType: Constructor<T> | AbstractType<T>,
-  unchecked: boolean = false,
-  Reader = BinaryReader
+  options?: {
+    unchecked?: boolean,
+    construct?: boolean
+  }
 ): T {
   buffer = intoUint8Array(buffer);
-  const reader = new Reader(buffer);
-  const result = deserializeStruct(classType, reader);
-  if (!unchecked && reader._offset !== buffer.byteOffset + buffer.length) {
+  const reader = new BinaryReader(buffer);
+  const result = deserializeStruct(classType, reader, { construct: options?.construct });
+  if (!options?.unchecked && reader._offset !== buffer.byteOffset + buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader._offset
       } bytes after deserialized data`
@@ -346,14 +354,19 @@ export function deserialize<T>(
 }
 
 /// Deserializes object from bytes using schema, without checking the length read
+/**
+ * @deprecated use deserialize(..., ..., { unchecked: true }) instead
+ */
 export function deserializeUnchecked<T>(
   classType: { new(args: any): T },
   buffer: Uint8Array,
-  Reader = BinaryReader
+  options?: {
+    construct?: boolean
+  }
 ): T {
   buffer = intoUint8Array(buffer);
-  const reader = new Reader(buffer);
-  return deserializeStruct(classType, reader);
+  const reader = new BinaryReader(buffer);
+  return deserializeStruct(classType, reader, options);
 }
 
 
