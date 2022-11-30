@@ -83,12 +83,10 @@ export class BinaryWriter {
   }
 
   public uint8Array(array: Uint8Array) {
+    this.maybeResize();
     this.u32(array.length)
     this.buffer(array);
   }
-
-
-
 
   private buffer(buffer: Uint8Array) {
     const newBuf = new Uint8Array(this._length + buffer.length + INITIAL_LENGTH);
