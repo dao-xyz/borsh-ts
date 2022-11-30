@@ -13,90 +13,95 @@ const textEncoder = new ResolvedTextEncoder("utf-8");
 
 /// Binary encoder.
 export class BinaryWriter {
-  buf: DataView;
-  length: number;
+  _buf: DataView;
+  _length: number;
 
   public constructor() {
-    this.buf = new DataView(new ArrayBuffer(INITIAL_LENGTH));
-    this.length = 0;
+    this._buf = new DataView(new ArrayBuffer(INITIAL_LENGTH));
+    this._length = 0;
   }
 
   maybeResize() {
-    if (this.buf.byteLength < 64 + this.length) {
-      const newArr = new Uint8Array(this.buf.byteLength + INITIAL_LENGTH);
-      newArr.set(new Uint8Array(this.buf.buffer));
-      newArr.set(new Uint8Array(INITIAL_LENGTH), this.buf.byteLength)
-      this.buf = new DataView(newArr.buffer);
+    if (this._buf.byteLength < 64 + this._length) {
+      const newArr = new Uint8Array(this._buf.byteLength + INITIAL_LENGTH);
+      newArr.set(new Uint8Array(this._buf.buffer));
+      newArr.set(new Uint8Array(INITIAL_LENGTH), this._buf.byteLength)
+      this._buf = new DataView(newArr.buffer);
     }
   }
 
-  public writeBool(value: boolean) {
+
+  public bool(value: boolean) {
     this.maybeResize();
-    this.buf.setUint8(this.length, value ? 1 : 0);
-    this.length += 1;
+    this._buf.setUint8(this._length, value ? 1 : 0);
+    this._length += 1;
   }
 
-  public writeU8(value: number) {
+  public u8(value: number) {
     this.maybeResize();
-    this.buf.setUint8(this.length, value);
-    this.length += 1;
+    this._buf.setUint8(this._length, value);
+    this._length += 1;
   }
 
-  public writeU16(value: number) {
+  public u16(value: number) {
     this.maybeResize();
-    this.buf.setUint16(this.length, value, true);
-    this.length += 2;
+    this._buf.setUint16(this._length, value, true);
+    this._length += 2;
   }
 
-  public writeU32(value: number) {
+  public u32(value: number) {
     this.maybeResize();
-    this.buf.setUint32(this.length, value, true);
-    this.length += 4;
+    this._buf.setUint32(this._length, value, true);
+    this._length += 4;
   }
 
-  public writeU64(value: number | bigint) {
+  public u64(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 8))
+    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 8))
   }
 
-  public writeU128(value: number | bigint) {
+  public u128(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 16))
+    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 16))
   }
 
-  public writeU256(value: number | bigint) {
+  public u256(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 32))
+    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 32))
   }
 
-  public writeU512(value: number | bigint) {
+  public u512(value: number | bigint) {
     this.maybeResize();
-    this.writeBuffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 64))
+    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 64))
   }
 
-  private writeBuffer(buffer: Uint8Array) {
-    const newBuf = new Uint8Array(this.length + buffer.length + INITIAL_LENGTH);
-    newBuf.set(new Uint8Array(this.buf.buffer.slice(0, this.length)));
-    newBuf.set(buffer, this.length);
-    newBuf.set(new Uint8Array(INITIAL_LENGTH), this.length + buffer.length);
-    this.length += buffer.length;
-    this.buf = new DataView(newBuf.buffer);
-  }
-
-  public writeString(str: string) {
+  public string(str: string) {
     this.maybeResize();
     const b = textEncoder.encode(str);
-    this.writeU32(b.length);
-    this.writeBuffer(b);
+    this.u32(b.length);
+    this.buffer(b);
   }
 
-  public writeFixedArray(array: Uint8Array) {
-    this.writeBuffer(array);
+  public uint8Array(array: Uint8Array) {
+    this.u32(array.length)
+    this.buffer(array);
   }
 
-  public writeArray(array: any[], fn: any) {
+
+
+
+  private buffer(buffer: Uint8Array) {
+    const newBuf = new Uint8Array(this._length + buffer.length + INITIAL_LENGTH);
+    newBuf.set(new Uint8Array(this._buf.buffer.slice(0, this._length)));
+    newBuf.set(buffer, this._length);
+    newBuf.set(new Uint8Array(INITIAL_LENGTH), this._length + buffer.length);
+    this._length += buffer.length;
+    this._buf = new DataView(newBuf.buffer);
+  }
+
+  public array(array: any[], fn: any) {
     this.maybeResize();
-    this.writeU32(array.length);
+    this.u32(array.length);
     for (const elem of array) {
       this.maybeResize();
       fn(elem);
@@ -104,7 +109,7 @@ export class BinaryWriter {
   }
 
   public toArray(): Uint8Array {
-    return new Uint8Array(this.buf.buffer.slice(0, this.length));
+    return new Uint8Array(this._buf.buffer.slice(0, this._length));
   }
 }
 
@@ -132,79 +137,79 @@ function handlingRangeError(
 }
 
 export class BinaryReader {
-  buf: DataView;
-  offset: number;
+  _buf: DataView;
+  _offset: number;
 
   public constructor(buf: Uint8Array) {
-    this.buf = new DataView(buf.buffer);
-    this.offset = buf.byteOffset;
+    this._buf = new DataView(buf.buffer);
+    this._offset = buf.byteOffset;
   }
 
   @handlingRangeError
-  readBool(): boolean {
-    const value = this.buf.getUint8(this.offset);
-    this.offset += 1;
+  bool(): boolean {
+    const value = this._buf.getUint8(this._offset);
+    this._offset += 1;
     return value ? true : false;
   }
 
   @handlingRangeError
-  readU8(): number {
-    const value = this.buf.getUint8(this.offset);
-    this.offset += 1;
+  u8(): number {
+    const value = this._buf.getUint8(this._offset);
+    this._offset += 1;
     return value;
   }
 
   @handlingRangeError
-  readU16(): number {
-    const value = this.buf.getUint16(this.offset, true);
-    this.offset += 2;
+  u16(): number {
+    const value = this._buf.getUint16(this._offset, true);
+    this._offset += 2;
     return value;
   }
 
   @handlingRangeError
-  readU32(): number {
-    const value = this.buf.getUint32(this.offset, true);
-    this.offset += 4;
+  u32(): number {
+    const value = this._buf.getUint32(this._offset, true);
+    this._offset += 4;
     return value;
   }
 
   @handlingRangeError
-  readU64(): bigint {
-    const buf = this.readBuffer(8);
+  u64(): bigint {
+    const buf = this.buffer(8);
     return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU128(): bigint {
-    const buf = this.readBuffer(16);
+  u128(): bigint {
+    const buf = this.buffer(16);
     return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU256(): bigint {
-    const buf = this.readBuffer(32);
+  u256(): bigint {
+    const buf = this.buffer(32);
     return toBigIntLE(buf)
   }
 
   @handlingRangeError
-  readU512(): bigint {
-    const buf = this.readBuffer(64);
+  u512(): bigint {
+    const buf = this.buffer(64);
     return toBigIntLE(buf)
   }
 
-  private readBuffer(len: number): Uint8Array {
-    if (this.offset + len > this.buf.byteLength) {
+  private buffer(len: number): Uint8Array {
+    if (this._offset + len > this._buf.byteLength) {
       throw new BorshError(`Expected buffer length ${len} isn't within bounds`);
     }
-    const result = this.buf.buffer.slice(this.offset, this.offset + len);
-    this.offset += len;
+    const result = this._buf.buffer.slice(this._offset, this._offset + len);
+    this._offset += len;
     return new Uint8Array(result);
   }
 
   @handlingRangeError
-  readString(): string {
-    const len = this.readU32();
-    const buf = this.readBuffer(len);
+  string(): string {
+    const len = this.u32();
+    const buf = this.buffer(len);
     try {
       // NOTE: Using TextDecoder to fail on invalid UTF-8
       return textDecoder.decode(buf);
@@ -214,13 +219,14 @@ export class BinaryReader {
   }
 
   @handlingRangeError
-  readFixedArray(len: number): Uint8Array {
-    return new Uint8Array(this.readBuffer(len));
+  uint8Array(): Uint8Array {
+    const len = this.u32();
+    return new Uint8Array(this.buffer(len));
   }
 
   @handlingRangeError
   readArray(fn: any): any[] {
-    const len = this.readU32();
+    const len = this.u32();
     const result = Array<any>();
     for (let i = 0; i < len; ++i) {
       result.push(fn());

@@ -45,7 +45,9 @@ export type FieldType =
   | Constructor<any>
   | AbstractType<any>
   | CustomField<any>
-  | WrappedType;
+  | WrappedType
+  | Uint8Array
+
 export type SimpleField = { type: FieldType; index?: number };
 export interface CustomField<T> extends OverrideType<T> {
   index?: number;

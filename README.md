@@ -196,10 +196,10 @@ class TestStruct {
     // Override ser/der of the number
     @field({
         serialize: (value: number, writer) => {
-            writer.writeU16(value);
+            writer.u16(value);
         },
         deserialize: (reader): number => {
-            return reader.readU16();
+            return reader.u16();
         },
     })
     public number: number;

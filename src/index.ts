@@ -16,15 +16,11 @@ export * from "./binary";
 export * from "./types";
 export * from './error';
 
-function capitalizeFirstLetter(string: string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
-}
-
 export function serializeField(
   fieldName: string,
   value: any,
   fieldType: any, // A simple type of a CustomField
-  writer: any
+  writer: BinaryWriter
 ) {
   try {
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
@@ -33,17 +29,21 @@ export function serializeField(
     }
     else if (value === null || value === undefined) {
       if (fieldType instanceof OptionKind) {
-        writer.writeU8(0);
+        writer.u8(0);
       } else {
         throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
       }
     }
     else if (fieldType instanceof OptionKind) {
-      writer.writeU8(1);
+      writer.u8(1);
       serializeField(fieldName, value, fieldType.elementType, writer);
     }
+    else if (fieldType === Uint8Array) {
+      const arr = value as Uint8Array;
+      writer.uint8Array(arr)
+    }
     else if (typeof fieldType === "string") {
-      writer[`write${capitalizeFirstLetter(fieldType)}`](value);
+      (writer as any)[fieldType](value);
     } else if (
       fieldType instanceof VecKind ||
       fieldType instanceof FixedArrayKind
@@ -57,7 +57,7 @@ export function serializeField(
           );
         }
       } else {
-        writer.writeU32(len); // For dynamically sized array we write the size as u32 according to specification
+        writer.u32(len); // For dynamically sized array we write the size as u32 according to specification
       }
       for (let i = 0; i < len; i++) {
         serializeField(null, value[i], fieldType.elementType, writer);
@@ -102,14 +102,14 @@ export function serializeStruct(
       const index = v.schema.variant;
       if (index != undefined) {
         if (typeof index === "number") {
-          writer.writeU8(index);
+          writer.u8(index);
         } else if (Array.isArray(index)) {
           index.forEach((i) => {
-            writer.writeU8(i);
+            writer.u8(i);
           });
         }
         else { // is string
-          writer.writeString(index);
+          writer.string(index);
         }
       }
 
@@ -141,14 +141,18 @@ function deserializeField(
 ): any {
   try {
     if (typeof fieldType === "string") {
-      return (reader as any)[`read${capitalizeFirstLetter(fieldType)}`]();
+      return (reader as any)[fieldType]();
+    }
+
+    if (fieldType === Uint8Array) {
+      return reader.uint8Array()
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
       let len =
         fieldType instanceof FixedArrayKind
           ? fieldType.length
-          : reader.readU32();
+          : reader.u32();
       let arr = new Array(len);
       for (let i = 0; i < len; i++) {
         arr[i] = deserializeField(null, fieldType.elementType, reader);
@@ -160,7 +164,7 @@ function deserializeField(
     }
 
     if (fieldType instanceof OptionKind) {
-      const option = reader.readU8();
+      const option = reader.u8();
       if (option) {
         return deserializeField(
           fieldName,
@@ -195,14 +199,14 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
     // This means we should omit the variant index
     let index = getVariantIndex(clazz);
     if (typeof index === "number") {
-      reader.readU8();
+      reader.u8();
     } else if (Array.isArray(index)) {
       for (const _ of index) {
-        reader.readU8();
+        reader.u8();
       }
     }
     else { // string
-      reader.readString();
+      reader.string();
     }
   }
 
@@ -236,7 +240,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
         if (typeof variantIndex === "number") {
 
           if (!variantsIndex) {
-            variantsIndex = [reader.readU8()];
+            variantsIndex = [reader.u8()];
           }
           if (variantIndex == variantsIndex[0]) {
             nextClazz = actualClazz;
@@ -248,7 +252,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
           if (!variantsIndex) {
             variantsIndex = [];
             while (variantsIndex.length < variantIndex.length) {
-              variantsIndex.push(reader.readU8());
+              variantsIndex.push(reader.u8());
             }
           }
 
@@ -264,7 +268,7 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader) {
 
         else { // is string
           if (variantString == undefined) {
-            variantString = reader.readString();
+            variantString = reader.string();
           }
           // Compare variants is just string compare
           if (
@@ -332,9 +336,9 @@ export function deserialize<T>(
   buffer = intoUint8Array(buffer);
   const reader = new Reader(buffer);
   const result = deserializeStruct(classType, reader);
-  if (!unchecked && reader.offset !== buffer.byteOffset + buffer.length) {
+  if (!unchecked && reader._offset !== buffer.byteOffset + buffer.length) {
     throw new BorshError(
-      `Unexpected ${buffer.length - reader.offset
+      `Unexpected ${buffer.length - reader._offset
       } bytes after deserialized data`
     );
   }
@@ -662,14 +666,14 @@ export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
       continue;
     }
     if (typeof variant === 'string') {
-      writer.writeString(variant)
+      writer.string(variant)
     }
     else if (typeof variant === 'number') {
-      writer.writeU8(variant)
+      writer.u8(variant)
     }
     else if (Array.isArray(variant)) {
       variant.forEach((v) => {
-        writer.writeU8(v)
+        writer.u8(v)
       })
     }
     else {

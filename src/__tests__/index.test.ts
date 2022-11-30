@@ -212,7 +212,24 @@ describe("arrays", () => {
       deserialize(new Uint8Array([1, 2]), TestStruct)
     ).toThrowError();
   });
+  it("u8intarary", () => {
+    class TestStruct {
+      @field({ type: Uint8Array })
+      public a: Uint8Array;
 
+      constructor(properties?: { a: Uint8Array }) {
+        if (properties) {
+          this.a = properties.a;
+        }
+      }
+    }
+
+    validate(TestStruct);
+    const buf = serialize(new TestStruct({ a: new Uint8Array([1, 2, 3]) }));
+    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
+    expect(deserialized.a).toEqual(new Uint8Array([1, 2, 3]));
+  });
   test("vec struct", () => {
     class Element {
       @field({ type: "u8" })
@@ -991,10 +1008,10 @@ describe("override", () => {
     class TestStruct {
       @field({
         serialize: (value: number, writer) => {
-          writer.writeU16(value);
+          writer.u16(value);
         },
         deserialize: (reader): number => {
-          return reader.readU16();
+          return reader.u16();
         },
       })
       public number: number;
@@ -1018,18 +1035,18 @@ describe("override", () => {
       @field({
         serialize: (value: number | undefined, writer) => {
           if (typeof value !== "number") {
-            writer.writeU8(0);
+            writer.u8(0);
             return;
           }
-          writer.writeU8(1);
-          writer.writeU32(value);
+          writer.u8(1);
+          writer.u32(value);
         },
         deserialize: (reader): number => {
-          const option = reader.readU8();
+          const option = reader.u8();
           if (option === 0) {
             return undefined;
           }
-          return reader.readU32();
+          return reader.u32();
         },
       })
       public number?: number;
@@ -1058,10 +1075,10 @@ describe("override", () => {
       @field({
         type: option({
           serialize: (value: number, writer) => {
-            writer.writeU8(value);
+            writer.u8(value);
           },
           deserialize: (reader): number => {
-            return reader.readU8();
+            return reader.u8();
           },
         }),
       })
