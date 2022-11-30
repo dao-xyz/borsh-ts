@@ -86,7 +86,7 @@ class Enum0 extends Super {
     public a: number;
 
     constructor(a: number) {
-    super();
+        super();
         this.a = a;
     }
 }
@@ -98,7 +98,7 @@ class Enum1 extends Super {
     public b: number;
 
     constructor(b: number) {
-    super();
+        super();
         this.b = b;
     }
 }
