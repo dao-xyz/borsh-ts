@@ -16,6 +16,7 @@ safety, speed, and comes with a strict specification.
 - ESM and CJS build
 - Stricter validation checks during serialization and deserialization
 
+
 ## Installation
 
 ```
@@ -299,9 +300,24 @@ Run linter
 yarn pretty
 ```
 
+## Benchmarks 
+[See benchmark script here](./benchmark/index.ts)
+
+borsh x 890,313 ops/sec ±0.20% (96 runs sampled)
+
+json x 2,038,966 ops/sec ±0.22% (99 runs sampled)
+
+protobujs x 3,145,022 ops/sec ±0.93% (97 runs sampled
+
+There is still some work to be done on allocating right amount of memory on serialization and improve overall performance on deserialization. JSON is fast in Javascript environments, since the JSON lib is heavily optimized in Javascript runtimes.
+
+
 # License
 This repository is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 See [LICENSE-MIT](LICENSE-MIT.txt) and [LICENSE-APACHE](LICENSE-APACHE) for details.
 
 For official releases see:
 [Borsh]: https://borsh.io
+
+
+
