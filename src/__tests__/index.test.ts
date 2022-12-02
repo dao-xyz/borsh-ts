@@ -46,6 +46,26 @@ describe("struct", () => {
     deserialize(serialize(a), TestStruct, { construct: true });
     expect(constructorInvokation).toEqual(2);
   });
+
+  test("as object", () => {
+    let constructorInvokation = 0;
+    class TestStruct {
+      @field({ type: "u8" })
+      a: number;
+      constructor(a: number) {
+        this.a = a;
+        constructorInvokation += 1;
+      }
+    }
+
+    const a = new TestStruct(123);
+    expect(constructorInvokation).toEqual(1);
+    const object = deserialize(serialize(a), TestStruct, { object: true });
+    expect(object instanceof TestStruct).toBeFalsy();
+    expect(object.a).toEqual(123);
+    expect(constructorInvokation).toEqual(1);
+  });
+
   test("multifield", () => {
     class TestStruct {
       @field({ type: "u8" })
