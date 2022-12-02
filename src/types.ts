@@ -1,5 +1,5 @@
-import { BinaryReader, BinaryWriter } from "./binary";
-import { BorshError } from "./error";
+import { BinaryReader, BinaryWriter } from "./binary.js";
+import { BorshError } from "./error.js";
 
 /**
  * Class with constructor

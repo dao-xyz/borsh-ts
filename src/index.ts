@@ -9,12 +9,12 @@ import {
   extendingClasses,
   Constructor,
   AbstractType,
-} from "./types";
-import { BorshError } from "./error";
-import { BinaryWriter, BinaryReader } from "./binary";
-export * from "./binary";
-export * from "./types";
-export * from './error';
+} from "./types.js";
+import { BorshError } from "./error.js";
+import { BinaryWriter, BinaryReader } from "./binary.js";
+export * from "./binary.js";
+export * from "./types.js";
+export * from './error.js';
 
 export function serializeField(
   fieldName: string,
@@ -24,6 +24,7 @@ export function serializeField(
 ) {
   try {
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
+
     if (typeof fieldType["serialize"] == "function") {
       fieldType.serialize(value, writer);
     }
@@ -34,6 +35,9 @@ export function serializeField(
         throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
       }
     }
+    else if (typeof fieldType === "string") {
+      (writer as any)[fieldType](value);
+    }
     else if (fieldType instanceof OptionKind) {
       writer.u8(1);
       serializeField(fieldName, value, fieldType.elementType, writer);
@@ -42,9 +46,7 @@ export function serializeField(
       const arr = value as Uint8Array;
       writer.uint8Array(arr)
     }
-    else if (typeof fieldType === "string") {
-      (writer as any)[fieldType](value);
-    } else if (
+    else if (
       fieldType instanceof VecKind ||
       fieldType instanceof FixedArrayKind
     ) {
@@ -80,13 +82,12 @@ export function serializeStruct(
   obj: any,
   writer: BinaryWriter
 ) {
-  if (obj == undefined) {
-    const t = 123;
-  }
+
   if (typeof obj.borshSerialize === "function") {
     obj.borshSerialize(writer);
     return;
   }
+
 
 
   // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
@@ -126,10 +127,9 @@ export function serializeStruct(
 /// Serialize given object using schema of the form:
 /// { class_name -> [ [field_name, field_type], .. ], .. }
 export function serialize(
-  obj: any,
-  Writer = BinaryWriter
+  obj: any
 ): Uint8Array {
-  const writer = new Writer();
+  const writer = new BinaryWriter();
   serializeStruct(obj, writer);
   return writer.toArray();
 }
@@ -138,7 +138,7 @@ function deserializeField(
   fieldName: string,
   fieldType: any,
   reader: BinaryReader,
-  options: { construct?: boolean }
+  options: DeserializeStructOptions
 ): any {
   try {
     if (typeof fieldType === "string") {
@@ -186,7 +186,7 @@ function deserializeField(
   }
 }
 
-function deserializeStruct(targetClazz: any, reader: BinaryReader, options: { construct?: boolean }) {
+function deserializeStruct(targetClazz: any, reader: BinaryReader, options: DeserializeStructOptions) {
   if (typeof targetClazz.borshDeserialize === "function") {
     return targetClazz.borshDeserialize(reader);
   }
@@ -307,7 +307,10 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader, options: { co
     throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${clazz?.name || clazz} which are not compatible`);
 
   }
-  return Object.assign(options.construct ? new currClazz() : Object.create(currClazz.prototype), result);
+  if ((options as any)?.object) {
+    return result;
+  }
+  return Object.assign((options as any)?.construct ? new currClazz() : Object.create(currClazz.prototype), result);
 
 }
 
@@ -333,18 +336,19 @@ const intoUint8Array = (buf: Uint8Array) => {
  * @returns
  */
 
+
+type DeserializeStructOptions = { construct?: boolean } | { object?: boolean };
 export function deserialize<T>(
   buffer: Uint8Array,
   classType: Constructor<T> | AbstractType<T>,
   options?: {
-    unchecked?: boolean,
-    construct?: boolean
-  }
+    unchecked?: boolean
+  } & DeserializeStructOptions
 ): T {
   buffer = intoUint8Array(buffer);
   const reader = new BinaryReader(buffer);
-  const result = deserializeStruct(classType, reader, { construct: options?.construct });
-  if (!options?.unchecked && reader._offset !== buffer.byteOffset + buffer.length) {
+  const result = deserializeStruct(classType, reader, options);
+  if (!options?.unchecked && reader._offset !== buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader._offset
       } bytes after deserialized data`
@@ -495,7 +499,7 @@ export const getSchema = (ctor: Function): StructKind => {
 
 export const getSchemasBottomUp = (ctor: Function): { clazz: Function, schema: StructKind }[] => {
   let schemas: { clazz: Function, schema: StructKind }[] = [];
-  while (ctor.prototype != undefined) {
+  while (ctor?.prototype != undefined) {
     let schema = getSchema(ctor);
     if (schema)
       schemas.push({
@@ -504,7 +508,9 @@ export const getSchemasBottomUp = (ctor: Function): { clazz: Function, schema: S
       });
     ctor = Object.getPrototypeOf(ctor);
   }
-  return schemas.reverse();
+  if (schemas.length > 1)
+    return schemas.reverse();
+  return schemas;
 
 }
 

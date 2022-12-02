@@ -261,6 +261,7 @@ describe("arrays", () => {
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(new Uint8Array([1, 2, 3]));
   });
+
   test("vec struct", () => {
     class Element {
       @field({ type: "u8" })
@@ -339,11 +340,11 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(3);
+    const instance = new Struct(12345);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0]));
+    expect(buf).toEqual(new Uint8Array([57, 48, 0, 0]));
     const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(3);
+    expect(deserialized.a).toEqual(12345);
   });
   test("u64", () => {
     class Struct {
@@ -931,26 +932,32 @@ describe("string", () => {
     class TestStruct {
       @field({ type: "string" })
       public a: string;
-      constructor(a: string) {
+
+      @field({ type: "u8" })
+      public b: number;
+
+      @field({ type: "string" })
+      public c: string;
+
+      constructor(a: string, b: number, c: string) {
         this.a = a;
+        this.b = b;
+        this.c = c;
       }
     }
     validate(TestStruct);
-    const expectedResult: StructKind = new StructKind({
-      fields: [
-        {
-          key: "a",
-          type: "string",
-        },
-      ],
-    });
-    expect(getSchema(TestStruct)).toEqual(expectedResult);
-    const bufSome = serialize(new TestStruct("a string"));
+
+    const bufSome = serialize(new TestStruct("a string 😊", 123, "that ends"));
     expect(bufSome).toEqual(
-      new Uint8Array([8, 0, 0, 0, 97, 32, 115, 116, 114, 105, 110, 103])
+      new Uint8Array([
+        13, 0, 0, 0, 97, 32, 115, 116, 114, 105, 110, 103, 32, 240, 159, 152,
+        138, 123, 9, 0, 0, 0, 116, 104, 97, 116, 32, 101, 110, 100, 115,
+      ])
     );
     const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
-    expect(deserializedSome.a).toEqual("a string");
+    expect(deserializedSome.a).toEqual("a string 😊");
+    expect(deserializedSome.b).toEqual(123);
+    expect(deserializedSome.c).toEqual("that ends");
   });
 });
 

@@ -1,113 +1,102 @@
-const INITIAL_LENGTH = 1024;
-import { toBigIntLE, toBufferLE } from './bigint';
-import { BorshError } from "./error";
-import * as encoding from "text-encoding-utf-8";
+import { toBigIntLE, writeBufferLEBigInt, writeBufferLE, readBufferLE, readBigUIntLE } from './bigint.js';
+import { BorshError } from "./error.js";
+import utf8 from '@protobufjs/utf8';
 
-const ResolvedTextDecoder =
-  typeof TextDecoder !== "function" ? encoding.TextDecoder : TextDecoder;
-const textDecoder = new ResolvedTextDecoder("utf-8", { fatal: true });
+const INITIAL_LENGTH = 8;
 
-const ResolvedTextEncoder =
-  typeof TextEncoder !== "function" ? encoding.TextEncoder : TextEncoder;
-const textEncoder = new ResolvedTextEncoder("utf-8");
-
-/// Binary encoder.
 export class BinaryWriter {
-  _buf: DataView;
+  _buf: Uint8Array;
   _length: number;
 
   public constructor() {
-    this._buf = new DataView(new ArrayBuffer(INITIAL_LENGTH));
+    this._buf = new Uint8Array(INITIAL_LENGTH);
     this._length = 0;
   }
 
-  maybeResize() {
-    if (this._buf.byteLength < 64 + this._length) {
-      const newArr = new Uint8Array(this._buf.byteLength + INITIAL_LENGTH);
-      newArr.set(new Uint8Array(this._buf.buffer));
-      newArr.set(new Uint8Array(INITIAL_LENGTH), this._buf.byteLength)
-      this._buf = new DataView(newArr.buffer);
+  maybeResize(toFit: number) {
+    if (this._buf.byteLength < toFit + this._length) {
+      const newArr = new Uint8Array(this._buf.byteLength + toFit + INITIAL_LENGTH); // add some extra padding (INITIAL_LENGTH)
+      newArr.set(this._buf);
+      this._buf = newArr;
     }
   }
 
-
   public bool(value: boolean) {
-    this.maybeResize();
-    this._buf.setUint8(this._length, value ? 1 : 0);
+    this.maybeResize(1);
+    this._buf[this._length] = value ? 1 : 0;
     this._length += 1;
   }
 
   public u8(value: number) {
-    this.maybeResize();
-    this._buf.setUint8(this._length, value);
+    this.maybeResize(1);
+    this._buf[this._length] = value;
     this._length += 1;
   }
 
   public u16(value: number) {
-    this.maybeResize();
-    this._buf.setUint16(this._length, value, true);
+    this.maybeResize(2);
+    writeBufferLE(value, this._buf, 2, this._length)
     this._length += 2;
   }
 
   public u32(value: number) {
-    this.maybeResize();
-    this._buf.setUint32(this._length, value, true);
+    this.maybeResize(4);
+    writeBufferLE(value, this._buf, 4, this._length)
     this._length += 4;
+
   }
 
   public u64(value: number | bigint) {
-    this.maybeResize();
-    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 8))
+    this.maybeResize(8);
+    writeBufferLEBigInt(value, 8, this._buf, this._length)
+    this._length += 8;
   }
 
   public u128(value: number | bigint) {
-    this.maybeResize();
-    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 16))
+    this.maybeResize(16);
+    writeBufferLEBigInt(value, 16, this._buf, this._length)
+    this._length += 16;
   }
 
   public u256(value: number | bigint) {
-    this.maybeResize();
-    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 32))
+    this.maybeResize(32);
+    writeBufferLEBigInt(value, 32, this._buf, this._length)
+    this._length += 32;
   }
 
   public u512(value: number | bigint) {
-    this.maybeResize();
-    this.buffer(toBufferLE(typeof value === 'number' ? BigInt(value) : value, 64))
+    this.maybeResize(64);
+    writeBufferLEBigInt(value, 64, this._buf, this._length)
+    this._length += 64;
   }
 
   public string(str: string) {
-    this.maybeResize();
-    const b = textEncoder.encode(str);
-    this.u32(b.length);
-    this.buffer(b);
+    const len = utf8.length(str);
+    this.u32(len);
+    this.maybeResize(len)
+    this._length += utf8.write(str, this._buf, this._length);
+
   }
 
   public uint8Array(array: Uint8Array) {
-    this.maybeResize();
+    this.maybeResize(array.length + 4);
     this.u32(array.length)
     this.buffer(array);
   }
 
   private buffer(buffer: Uint8Array) {
-    const newBuf = new Uint8Array(this._length + buffer.length + INITIAL_LENGTH);
-    newBuf.set(new Uint8Array(this._buf.buffer.slice(0, this._length)));
-    newBuf.set(buffer, this._length);
-    newBuf.set(new Uint8Array(INITIAL_LENGTH), this._length + buffer.length);
-    this._length += buffer.length;
-    this._buf = new DataView(newBuf.buffer);
-  }
-
-  public array(array: any[], fn: any) {
-    this.maybeResize();
-    this.u32(array.length);
-    for (const elem of array) {
-      this.maybeResize();
-      fn(elem);
-    }
+    this.maybeResize(buffer.byteLength);
+    /* const newBuf = new Uint8Array(this._length + buffer.length + INITIAL_LENGTH);
+    newBuf.set(this._buf.slice(0, this._length));
+    newBuf.set(buffer, this._length); */
+    this._buf.set(buffer, this._length);
+    this._length += buffer.byteLength;
   }
 
   public toArray(): Uint8Array {
-    return new Uint8Array(this._buf.buffer.slice(0, this._length));
+    if (this._buf.length !== this._length)
+      return this._buf.slice(0, this._length);
+    return this._buf
   }
 }
 
@@ -135,58 +124,61 @@ function handlingRangeError(
 }
 
 export class BinaryReader {
-  _buf: DataView;
+  _buf: Uint8Array;
   _offset: number;
 
   public constructor(buf: Uint8Array) {
-    this._buf = new DataView(buf.buffer);
-    this._offset = buf.byteOffset;
+    this._buf = buf;
+    this._offset = 0;
   }
 
   @handlingRangeError
   bool(): boolean {
-    const value = this._buf.getUint8(this._offset);
+    const value = this._buf[this._offset];
     this._offset += 1;
     return value ? true : false;
   }
 
   @handlingRangeError
   u8(): number {
-    const value = this._buf.getUint8(this._offset);
+    const value = this._buf[this._offset];
     this._offset += 1;
     return value;
   }
 
   @handlingRangeError
   u16(): number {
-    const value = this._buf.getUint16(this._offset, true);
+    const value = readBufferLE(this._buf, 2, this._offset);
     this._offset += 2;
     return value;
   }
 
   @handlingRangeError
   u32(): number {
-    const value = this._buf.getUint32(this._offset, true);
+    const value = readBufferLE(this._buf, 4, this._offset);
     this._offset += 4;
     return value;
   }
 
   @handlingRangeError
   u64(): bigint {
-    const buf = this.buffer(8);
-    return toBigIntLE(buf)
+    const value = readBigUIntLE(this._buf, 4, this._offset);
+    this._offset += 8;
+    return value
   }
 
   @handlingRangeError
   u128(): bigint {
-    const buf = this.buffer(16);
-    return toBigIntLE(buf)
+    const value = readBigUIntLE(this._buf, 8, this._offset);
+    this._offset += 16;
+    return value
   }
 
   @handlingRangeError
   u256(): bigint {
-    const buf = this.buffer(32);
-    return toBigIntLE(buf)
+    const value = readBigUIntLE(this._buf, 16, this._offset);
+    this._offset += 32;
+    return value
   }
 
   @handlingRangeError
@@ -207,10 +199,11 @@ export class BinaryReader {
   @handlingRangeError
   string(): string {
     const len = this.u32();
-    const buf = this.buffer(len);
     try {
       // NOTE: Using TextDecoder to fail on invalid UTF-8
-      return textDecoder.decode(buf);
+      const string = utf8.read(this._buf, this._offset, this._offset + len);
+      this._offset += len
+      return string;
     } catch (e) {
       throw new BorshError(`Error decoding UTF-8 string: ${e}`);
     }
