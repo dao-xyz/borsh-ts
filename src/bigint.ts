@@ -94,7 +94,7 @@ export const readUInt16LE = (buffer: Uint8Array, offset: number) => {
 
 
 
-const checkInt = (value: number, min: number | bigint, max: number | bigint, byteLength: number) => {
+export const checkInt = (value: number, min: number | bigint, max: number | bigint, byteLength: number) => {
     if (value > max || value < min) {
         const n = typeof min === 'bigint' ? 'n' : '';
         let range;

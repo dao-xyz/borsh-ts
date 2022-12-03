@@ -335,6 +335,21 @@ describe("number", () => {
     expect(deserialized.a).toEqual(3);
   });
 
+  test("u8 max", () => {
+    class Struct {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(255);
+    const buf = serialize(instance);
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(255);
+  });
+
   test("u16", () => {
     class Struct {
       @field({ type: "u16" })

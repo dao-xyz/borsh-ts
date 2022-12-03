@@ -1,4 +1,4 @@
-import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE } from './bigint.js';
+import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 
@@ -29,6 +29,7 @@ export class BinaryWriter {
 
   public u8(value: number) {
     this.maybeResize(1);
+    checkInt(value, 0, 255, 1);
     this._buf[this._length] = value;
     this._length += 1;
   }
