@@ -1,4 +1,4 @@
-import { toBigIntLE, writeBufferLEBigInt, writeBufferLE, readBufferLE, readBigUIntLE } from './bigint.js';
+import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 
@@ -35,13 +35,13 @@ export class BinaryWriter {
 
   public u16(value: number) {
     this.maybeResize(2);
-    writeBufferLE(value, this._buf, 2, this._length)
+    writeUInt16LE(value, this._buf, this._length)
     this._length += 2;
   }
 
   public u32(value: number) {
     this.maybeResize(4);
-    writeBufferLE(value, this._buf, 4, this._length)
+    writeUInt32LE(value, this._buf, this._length)
     this._length += 4;
 
   }
@@ -148,35 +148,35 @@ export class BinaryReader {
 
   @handlingRangeError
   u16(): number {
-    const value = readBufferLE(this._buf, 2, this._offset);
+    const value = readUInt16LE(this._buf, this._offset);
     this._offset += 2;
     return value;
   }
 
   @handlingRangeError
   u32(): number {
-    const value = readBufferLE(this._buf, 4, this._offset);
+    const value = readUInt32LE(this._buf, this._offset);
     this._offset += 4;
     return value;
   }
 
   @handlingRangeError
   u64(): bigint {
-    const value = readBigUIntLE(this._buf, 4, this._offset);
+    const value = readBigUInt64LE(this._buf, this._offset);
     this._offset += 8;
     return value
   }
 
   @handlingRangeError
   u128(): bigint {
-    const value = readBigUIntLE(this._buf, 8, this._offset);
+    const value = readUIntLE(this._buf, this._offset, 16);
     this._offset += 16;
     return value
   }
 
   @handlingRangeError
   u256(): bigint {
-    const value = readBigUIntLE(this._buf, 16, this._offset);
+    const value = readUIntLE(this._buf, this._offset, 32);
     this._offset += 32;
     return value
   }

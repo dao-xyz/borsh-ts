@@ -21,39 +21,93 @@ export function writeBufferLEBigInt(num: bigint | number, width: number, buffer:
     }
 }
 
-export function writeBufferLE(num: number, buffer: Uint8Array, width: number, offset: number) {
-    buffer[offset] = num & 255
-    for (let i = 1; i < width; i++) {
-        buffer[offset + i] = num >> (i * 8) & 255
-    }
-}
-
-export function readBufferLE(buffer: Uint8Array, width: number, offset: number) {
-    let n = 0;
-    for (let i = offset + width; i >= offset; i--) {
-        n = (n << 8) | buffer[i];
-    }
-    return n;
+export function writeUInt32LE(value: number, buf: Uint8Array, offset: number) {
+    checkInt(value, 0, 0xffffffff, 1);
+    buf[offset++] = value;
+    value = value >>> 8;
+    buf[offset++] = value;
+    value = value >>> 8;
+    buf[offset++] = value;
+    value = value >>> 8;
+    buf[offset++] = value;
 }
 
 
-export function readBigUIntLE(buffer: Uint8Array, halfWidth: number, offset: number) {
-    const first = buffer[offset];
-    const last = buffer[offset + 7];
-    if (first === undefined || last === undefined) {
+export function writeUInt16LE(value: number, buf: Uint8Array, offset: number) {
+    checkInt(value, 0, 0xffff, 1);
+    buf[offset++] = value;
+    buf[offset++] = (value >>> 8);
+}
+
+export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
+    const first = buf[offset];
+    const last = buf[offset + 7];
+    if (first === undefined || last === undefined)
         throw new Error('Out of bounds');
-    }
 
-    const offsetHalfWidth = offset + halfWidth;
-    let a = buffer[offsetHalfWidth] + (last << 24);
-    for (let i = 1; i < halfWidth; i++) {
-        a = buffer[offsetHalfWidth + i] * 256 * 2 ** i
-    }
-    let b = 0;
-    for (let i = 1; i < halfWidth; i++) {
-        b = buffer[offset + i] * 256 * 2 ** i
-    }
+    const lo = first +
+        buf[++offset] * 2 ** 8 +
+        buf[++offset] * 2 ** 16 +
+        buf[++offset] * 2 ** 24;
 
-    return (BigInt(a) << 32n) +
-        BigInt(first + b);
+    const hi = buf[++offset] +
+        buf[++offset] * 2 ** 8 +
+        buf[++offset] * 2 ** 16 +
+        last * 2 ** 24;
+
+    return BigInt(lo) + (BigInt(hi) << 32n);
+}
+
+export function readUIntLE(buf: Uint8Array, offset: number, width: number): bigint {
+    const reversed = buf.slice(offset, offset + width).reverse();
+    const hex = arrayToHex(reversed);
+    if (hex.length === 0) {
+        return BigInt(0);
+    }
+    return BigInt(`0x${hex}`);
+}
+
+
+
+
+export const readUInt32LE = (buffer: Uint8Array, offset: number) => {
+    const first = buffer[offset];
+    const last = buffer[offset + 3];
+    if (first === undefined || last === undefined)
+        throw new Error('Out of bounds');
+
+    return first +
+        buffer[++offset] * 2 ** 8 +
+        buffer[++offset] * 2 ** 16 +
+        last * 2 ** 24;
+}
+
+
+export const readUInt16LE = (buffer: Uint8Array, offset: number) => {
+    const first = buffer[offset];
+    const last = buffer[offset + 1];
+    if (first === undefined || last === undefined)
+        throw new Error('Out of bounds');
+
+    return first + last * 2 ** 8;
+}
+
+
+
+const checkInt = (value: number, min: number | bigint, max: number | bigint, byteLength: number) => {
+    if (value > max || value < min) {
+        const n = typeof min === 'bigint' ? 'n' : '';
+        let range;
+        if (byteLength > 3) {
+            if (min === 0 || min === 0n) {
+                range = `>= 0${n} and < 2${n} ** ${(byteLength + 1) * 8}${n}`;
+            } else {
+                range = `>= -(2${n} ** ${(byteLength + 1) * 8 - 1}${n}) and < 2 ** ` +
+                    `${(byteLength + 1) * 8 - 1}${n}`;
+            }
+        } else {
+            range = `>= ${min}${n} and <= ${max}${n}`;
+        }
+        throw new Error("Out of range value: " + range + ", " + value);
+    }
 }

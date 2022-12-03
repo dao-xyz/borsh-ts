@@ -17,7 +17,6 @@ class Test {
     @field({ type: 'u32' })
     age: number;
 
-
     constructor(name: string, age: number) {
         this.name = name;
         this.age = age;

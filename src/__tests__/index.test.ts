@@ -360,13 +360,13 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(12345);
+    const instance = new Struct(4294967295);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([57, 48, 0, 0]));
+    // expect(buf).toEqual(new Uint8Array([57, 48, 0, 0]));
     const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(12345);
+    expect(deserialized.a).toEqual(4294967295);
   });
-  test("u64", () => {
+  test("u64 is le", () => {
     class Struct {
       @field({ type: "u64" })
       public a: bigint;
@@ -382,7 +382,23 @@ describe("number", () => {
     expect(deserialized.a).toEqual(BigInt(3));
   });
 
-  test("u128", () => {
+  test("u64 max", () => {
+    class Struct {
+      @field({ type: "u64" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const n = 18446744073709551615n;
+    const instance = new Struct(n);
+    const buf = serialize(instance);
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(n);
+  });
+
+  test("u128 max", () => {
     class Struct {
       @field({ type: "u128" })
       public a: bigint;
@@ -391,14 +407,31 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(BigInt(3));
+    const n = 340282366920938463463374607431768211455n;
+    const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, ...new Array(15).fill(0)]));
     const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(BigInt(3));
+    expect(deserialized.a).toEqual(n);
   });
 
-  test("u256", () => {
+  test("u128 is le", () => {
+    class Struct {
+      @field({ type: "u128" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const n = BigInt(15);
+    const instance = new Struct(n);
+    const buf = serialize(instance);
+    expect(buf).toEqual(new Uint8Array([15, ...new Array(15).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(BigInt(15));
+  });
+
+  test("u256 max", () => {
     class Struct {
       @field({ type: "u256" })
       public a: bigint;
@@ -407,14 +440,31 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(3n);
+    const n = BigInt(1.15e77);
+    const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, ...new Array(31).fill(0)]));
     const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(BigInt(3));
+    expect(deserialized.a).toEqual(n);
   });
 
-  test("u512", () => {
+  test("u256 is le", () => {
+    class Struct {
+      @field({ type: "u256" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const n = BigInt(123);
+    const instance = new Struct(n);
+    const buf = serialize(instance);
+    expect(buf).toEqual(new Uint8Array([123, ...new Array(31).fill(0)]));
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(n);
+  });
+
+  test("u512 is le", () => {
     class Struct {
       @field({ type: "u512" })
       public a: bigint;
@@ -428,6 +478,22 @@ describe("number", () => {
     expect(buf).toEqual(new Uint8Array([3, ...new Array(63).fill(0)]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
+  });
+
+  test("u512 max", () => {
+    class Struct {
+      @field({ type: "u512" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const n = BigInt(1.34e154);
+    const instance = new Struct(n);
+    const buf = serialize(instance);
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(n);
   });
 });
 describe("enum", () => {
