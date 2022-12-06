@@ -12,8 +12,7 @@
   "module": "lib/esm/index.mjs",
   "types": "lib/esm/index.d.ts",
   "exports": {
-    "import": "./lib/esm/index.mjs",
-    "require": "./lib/cjs/index.js"
+    "import": "./lib/esm/index.mjs"
   },
   "files": [
     "lib",
@@ -25,9 +24,9 @@
   },
   "scripts": {
     "clean": "rimraf lib",
-    "build": "yarn clean && tsc -p tsconfig.json; tsc-esm -p tsconfig.json && tsc -p tsconfig.cjs.json",
-    "postbuild": "echo '{\"type\":\"commonjs\"}' | npx json > lib/cjs/package.json && echo '{\"type\":\"module\"} ' | npx json > lib/esm/package.json && rimraf lib/esm/__tests__  && rimraf lib/cjs/__tests__",
-    "test": "node ./node_modules/.bin/jest test  -c  ./jest.config.ts",
+    "build": "yarn clean && tsc -p tsconfig.json; tsc-esm -p tsconfig.json",
+    "postbuild": "echo '{\"type\":\"module\"} ' | npx json > lib/esm/package.json && rimraf lib/esm/__tests__ && cp ./src/uint_bg.wasm ./lib/esm/uint_bg.wasm && cp ./src/uint_bg.wasm.d.ts ./lib/esm/uint_bg.wasm.d.ts",
+    "test": "node --experimental-wasm-modules --experimental-vm-modules ./node_modules/.bin/jest test  -c  ./jest.config.ts",
     "lint": "eslint src/**/*.ts",
     "pretty": "prettier --write src/**/*.ts package.json",
     "pretty:check": "prettier --write src/**/*.ts package.json --check",
@@ -52,7 +51,8 @@
     "typescript-esm": "^2.0.0",
     "benchmark": "^2.1.4",
     "@types/benchmark": "^2.1.2",
-    "protobufjs": "^7.1.2"
+    "protobufjs": "^7.1.2",
+    "fetch": "^1.1.0"
   },
   "dependencies": {
     "@protobufjs/utf8": "^1.1.0"

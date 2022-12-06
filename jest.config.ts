@@ -11,6 +11,14 @@ const jestConfig: JestConfigWithTsJest = {
                 useESM: true,
             },
         ],
+
+        './uint.js': [
+            "ts-jest",
+            {
+                useESM: true,
+            },
+        ],
+
     },
     fakeTimers: {},
     extensionsToTreatAsEsm: [".ts"],

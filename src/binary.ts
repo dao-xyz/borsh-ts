@@ -2,6 +2,9 @@ import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt1
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 
+const { serialize_u64, deserialize_u32, deserialize_u64, decode_utf8, encode_utf8, serialize_u32 } = await import('./uint.js')
+
+
 const INITIAL_LENGTH = 8;
 
 export class BinaryWriter {
@@ -42,7 +45,8 @@ export class BinaryWriter {
 
   public u32(value: number) {
     this.maybeResize(4);
-    writeUInt32LE(value, this._buf, this._length)
+    serialize_u32(value, this._buf, 4, this._length);
+    //writeUInt32LE(value, this._buf, this._length)
     this._length += 4;
 
   }
@@ -75,7 +79,10 @@ export class BinaryWriter {
     const len = utf8.length(str);
     this.u32(len);
     this.maybeResize(len)
-    this._length += utf8.write(str, this._buf, this._length);
+    // this._length += utf8.write(str, this._buf, this._length);
+    encode_utf8(str, this._buf, len, this._length)
+    this._length += len;
+
 
   }
 
@@ -156,7 +163,7 @@ export class BinaryReader {
 
   @handlingRangeError
   u32(): number {
-    const value = readUInt32LE(this._buf, this._offset);
+    const value = deserialize_u32(this._buf, 4, this._offset) //readUInt32LE(this._buf, this._offset);
     this._offset += 4;
     return value;
   }
@@ -200,14 +207,15 @@ export class BinaryReader {
   @handlingRangeError
   string(): string {
     const len = this.u32();
-    try {
+    /* try {
       // NOTE: Using TextDecoder to fail on invalid UTF-8
       const string = utf8.read(this._buf, this._offset, this._offset + len);
       this._offset += len
       return string;
     } catch (e) {
       throw new BorshError(`Error decoding UTF-8 string: ${e}`);
-    }
+    } */
+    return decode_utf8(this._buf, len, this._offset)
   }
 
   @handlingRangeError
