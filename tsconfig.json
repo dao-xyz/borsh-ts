@@ -23,7 +23,7 @@
     "sourceMap": true,
     "noEmitOnError": true,
     "stripInternal": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "jsx": "react",
     "resolveJsonModule": true,
     "isolatedModules": true,

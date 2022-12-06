@@ -1,4 +1,5 @@
-import { BorshError } from "../error";
+import { BinaryReader, BinaryWriter } from "../binary.js";
+import { BorshError } from "../error.js";
 import {
   deserialize,
   serialize,
@@ -11,7 +12,7 @@ import {
   option,
   fixedArray,
   getDiscriminator,
-} from "../index";
+} from "../index.js";
 
 describe("struct", () => {
   test("constructor is not called", () => {
@@ -1096,10 +1097,10 @@ describe("override", () => {
      */
     class TestStruct {
       @field({
-        serialize: (value: number, writer) => {
+        serialize: (value: number, writer: BinaryWriter) => {
           writer.u16(value);
         },
-        deserialize: (reader): number => {
+        deserialize: (reader: BinaryReader): number => {
           return reader.u16();
         },
       })
@@ -1122,7 +1123,7 @@ describe("override", () => {
 
     class TestStruct {
       @field({
-        serialize: (value: number | undefined, writer) => {
+        serialize: (value: number | undefined, writer: BinaryWriter) => {
           if (typeof value !== "number") {
             writer.u8(0);
             return;
@@ -1130,7 +1131,7 @@ describe("override", () => {
           writer.u8(1);
           writer.u32(value);
         },
-        deserialize: (reader): number => {
+        deserialize: (reader: BinaryReader): number => {
           const option = reader.u8();
           if (option === 0) {
             return undefined;
@@ -1163,10 +1164,10 @@ describe("override", () => {
     class TestStruct {
       @field({
         type: option({
-          serialize: (value: number, writer) => {
+          serialize: (value: number, writer: BinaryWriter) => {
             writer.u8(value);
           },
-          deserialize: (reader): number => {
+          deserialize: (reader: BinaryReader): number => {
             return reader.u8();
           },
         }),
