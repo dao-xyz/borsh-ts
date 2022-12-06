@@ -10,11 +10,12 @@ import {
   Constructor,
   AbstractType,
 } from "./types.js";
-import { BorshError } from "./error.js";
-import { BinaryWriter, BinaryReader } from "./binary.js";
 export * from "./binary.js";
 export * from "./types.js";
 export * from './error.js';
+
+import { BorshError } from "./error.js";
+import { BinaryWriter, BinaryReader } from "./binary.js";
 
 export function serializeField(
   fieldName: string,

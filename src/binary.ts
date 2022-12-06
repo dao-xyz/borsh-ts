@@ -192,7 +192,7 @@ export class BinaryReader {
     if (this._offset + len > this._buf.byteLength) {
       throw new BorshError(`Expected buffer length ${len} isn't within bounds`);
     }
-    const result = this._buf.buffer.slice(this._offset, this._offset + len);
+    const result = this._buf.slice(this._offset, this._offset + len);
     this._offset += len;
     return new Uint8Array(result);
   }

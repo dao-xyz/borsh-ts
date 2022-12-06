@@ -1,5 +1,4 @@
 import { BinaryReader, BinaryWriter } from "../binary.js";
-import { BorshError } from "../error.js";
 import {
   deserialize,
   serialize,
@@ -12,6 +11,7 @@ import {
   option,
   fixedArray,
   getDiscriminator,
+  BorshError,
 } from "../index.js";
 
 describe("struct", () => {
@@ -1624,14 +1624,15 @@ describe("deserialize input type", () => {
 
   test("uint8array with offset", () => {
     class Clazz {
-      @field({ type: "string" })
-      string: string;
+      @field({ type: Uint8Array })
+      arr: Uint8Array;
 
-      constructor(string?: string) {
-        this.string = string;
+      constructor(arr?: Uint8Array) {
+        this.arr = arr;
       }
     }
-    const ser = serialize(new Clazz("hello"));
+    const arr = new Uint8Array([1, 2, 3]);
+    const ser = serialize(new Clazz(arr));
     const offset = 3;
 
     const serWithOffset = new Uint8Array([6, 6, 6, ...ser]);
@@ -1639,19 +1640,21 @@ describe("deserialize input type", () => {
       new Uint8Array(serWithOffset.buffer, offset, ser.length),
       Clazz
     );
-    expect(der.string).toEqual("hello");
+    expect(der.arr).toEqual(arr);
   });
 
   test("uint8array with bytelength", () => {
     class Clazz {
-      @field({ type: "string" })
-      string: string;
+      @field({ type: Uint8Array })
+      arr: Uint8Array;
 
-      constructor(string?: string) {
-        this.string = string;
+      constructor(arr?: Uint8Array) {
+        this.arr = arr;
       }
     }
-    const ser = serialize(new Clazz("hello"));
+    const arr = new Uint8Array([1, 2, 3]);
+
+    const ser = serialize(new Clazz(arr));
     const offset = 3;
 
     const serWithOffset = new Uint8Array([6, 6, 6, ...ser, 6, 6, 6]);
@@ -1659,6 +1662,6 @@ describe("deserialize input type", () => {
       new Uint8Array(serWithOffset.buffer, offset, ser.length),
       Clazz
     );
-    expect(der.string).toEqual("hello");
+    expect(der.arr).toEqual(arr);
   });
 });
