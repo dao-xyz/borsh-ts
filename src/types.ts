@@ -29,9 +29,7 @@ export interface OverrideType<T> {
   serialize: (arg: T, writer: BinaryWriter) => void;
   deserialize: (reader: BinaryReader) => T;
 }
-
-export type FieldType =
-  | "bool"
+export type PrimitiveType = "bool"
   | "u8"
   | "u16"
   | "u32"
@@ -42,6 +40,9 @@ export type FieldType =
   | "f32"
   | "f64"
   | "string"
+
+export type FieldType =
+  PrimitiveType
   | Constructor<any>
   | AbstractType<any>
   | CustomField<any>

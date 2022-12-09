@@ -19,6 +19,7 @@ export class BinaryWriter {
       newArr.set(this._buf);
       this._buf = newArr;
     }
+
   }
 
   public bool(value: boolean) {
@@ -87,9 +88,6 @@ export class BinaryWriter {
 
   private buffer(buffer: Uint8Array) {
     this.maybeResize(buffer.byteLength);
-    /* const newBuf = new Uint8Array(this._length + buffer.length + INITIAL_LENGTH);
-    newBuf.set(this._buf.slice(0, this._length));
-    newBuf.set(buffer, this._length); */
     this._buf.set(buffer, this._length);
     this._length += buffer.byteLength;
   }
@@ -100,6 +98,8 @@ export class BinaryWriter {
     return this._buf
   }
 }
+
+
 
 function handlingRangeError(
   target: any,
@@ -123,6 +123,7 @@ function handlingRangeError(
     }
   };
 }
+
 
 export class BinaryReader {
   _buf: Uint8Array;

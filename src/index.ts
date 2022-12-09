@@ -9,6 +9,7 @@ import {
   extendingClasses,
   Constructor,
   AbstractType,
+  PrimitiveType,
 } from "./types.js";
 export * from "./binary.js";
 export * from "./types.js";
@@ -37,7 +38,37 @@ export function serializeField(
       }
     }
     else if (typeof fieldType === "string") {
-      (writer as any)[fieldType](value);
+      switch (fieldType as PrimitiveType) {
+        case "bool":
+          writer.bool(value);
+          break;
+        case "string":
+          writer.string(value);
+          break;
+        case "u8":
+          writer.u8(value)
+          break;
+        case "u16":
+          writer.u16(value)
+          break;
+        case "u32":
+          writer.u32(value)
+          break;
+        case "u64":
+          writer.u64(value)
+          break;
+        case "u128":
+          writer.u128(value)
+          break;
+        case "u256":
+          writer.u256(value)
+          break;
+        case "u512":
+          writer.u512(value)
+          break;
+        default:
+          throw new Error("Unsuppported")
+      }
     }
     else if (fieldType instanceof OptionKind) {
       writer.u8(1);
@@ -143,7 +174,28 @@ function deserializeField(
 ): any {
   try {
     if (typeof fieldType === "string") {
-      return (reader as any)[fieldType]();
+      switch (fieldType as PrimitiveType) {
+        case "bool":
+          return reader.bool();
+        case "string":
+          return reader.string();
+        case "u8":
+          return reader.u8()
+        case "u16":
+          return reader.u16()
+        case "u32":
+          return reader.u32()
+        case "u64":
+          return reader.u64()
+        case "u128":
+          return reader.u128()
+        case "u256":
+          return reader.u256()
+        case "u512":
+          return reader.u512()
+        default:
+          throw new Error("Unsuppported type: " + fieldType)
+      }
     }
 
     if (fieldType === Uint8Array) {
