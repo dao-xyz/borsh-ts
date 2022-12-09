@@ -14,7 +14,6 @@ import {
 export * from "./binary.js";
 export * from "./types.js";
 export * from './error.js';
-
 import { BorshError } from "./error.js";
 import { BinaryWriter, BinaryReader } from "./binary.js";
 
@@ -444,7 +443,7 @@ const setDependencyToProtoType = (ctor: Function) => {
 const setDependency = (ctor: Function, dependency: Function) => {
   let dependencies = getDependencies(ctor);
   let key = JSON.stringify(getVariantIndex(dependency));
-  let classPathKey = "__" + ctor.name + "/" + dependency.name;
+  let classPathKey = "__" + getClassID(ctor) + "/" + getClassID(dependency);
   if (dependencies.has(classPathKey) && key != undefined) {
     dependencies.delete(classPathKey)
   }
@@ -486,8 +485,23 @@ const checkClazzesCompatible = (clazzA: Constructor<any> | AbstractType<any>, cl
   return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
 
+const getFullPrototypeName = (clazz: Function) => {
+  let str = clazz.name;
+  while (Object.getPrototypeOf(clazz).prototype != undefined) {
+    clazz = Object.getPrototypeOf(clazz);
+    str += '/' + clazz.name
+  }
+  return str;
+}
 
-const getDependencyKey = (ctor: Function) => "_borsh_dependency_" + ctor.name
+const getClassID = (ctor: Function) => {
+  return getFullPrototypeName(ctor)
+}
+
+const getDependencyKey = (ctor: Function) => {
+
+  return "_borsh_dependency_" + getClassID(ctor);
+}
 
 const getDependencies = (ctor: Function): Map<string, Function> => {
   let existing = ctor.prototype.constructor[getDependencyKey(ctor)]
@@ -543,11 +557,11 @@ const getDependenciesRecursively = (ctor: Function, mem: Map<string, Function> =
 
 const setSchema = (ctor: Function, schema: StructKind) => {
 
-  ctor.prototype.constructor["_borsh_schema_" + ctor.name] = schema
+  ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)] = schema
 }
 
 export const getSchema = (ctor: Function): StructKind => {
-  return ctor.prototype.constructor["_borsh_schema_" + ctor.name];
+  return ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)];
 }
 
 export const getSchemasBottomUp = (ctor: Function): { clazz: Function, schema: StructKind }[] => {
@@ -567,8 +581,7 @@ export const getSchemasBottomUp = (ctor: Function): { clazz: Function, schema: S
 
 }
 
-
-
+Object.defineProperty
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum

@@ -5,12 +5,12 @@ import {
   validate,
   field,
   variant,
-  getSchema,
   StructKind,
   vec,
   option,
   fixedArray,
   getDiscriminator,
+  getSchema,
   BorshError,
 } from "../index.js";
 
