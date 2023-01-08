@@ -2,4 +2,5 @@ syntax = "proto3";
 message Message {
   string name = 1;
   uint32 age = 2;
+  bytes id = 3;
 }

@@ -33,17 +33,16 @@ const protoRoot = protobuf.loadSync('benchmark/bench3.proto')
 const ProtoMessage = protoRoot.lookupType("Message");
 const suite = new B.Suite()
 const createObject = () => {
-    return new Test("name-🍍" + getRandomInt(254), getRandomInt(254), crypto.randomBytes(32))
+    return new Test("name-🍍" + getRandomInt(254), getRandomInt(254), crypto.randomBytes(399992))
 }
 const numTestObjects = 10000
 const testObjects = ((new Array(numTestObjects)).fill(createObject()));
 const getTestObject = () => testObjects[getRandomInt(numTestObjects)];
 const borshArgs = { unchecked: true, object: true }
 suite.add("borsh", () => {
-    console.log(serialize(getTestObject()).byteLength)
-    deserialize(serialize(getTestObject()), Test, borshArgs)
+    serialize(getTestObject())
 }).add('protobujs', () => {
-    ProtoMessage.toObject(ProtoMessage.decode(ProtoMessage.encode(getTestObject()).finish()))
+    ProtoMessage.encode(getTestObject()).finish()
 }).on('cycle', (event: any) => {
     console.log(String(event.target));
 }).on('complete', function () {
