@@ -14,6 +14,7 @@ import {
   BorshError,
 } from "../index.js";
 
+import crypto from "crypto";
 
 describe("struct", () => {
   test("constructor is not called", () => {
@@ -100,12 +101,16 @@ describe("struct", () => {
     const bn123 = BigInt(123);
     const instance = new TestStruct({ a: 1, b: bn123 });
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0])
+    );
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(1);
     expect(deserialized.b).toEqual(BigInt(123));
     const bufAgain = serialize(deserialized);
-    expect(new Uint8Array(bufAgain)).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    expect(new Uint8Array(bufAgain)).toEqual(
+      new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0])
+    );
   });
 
   test("struct fields", () => {
@@ -140,7 +145,7 @@ describe("struct", () => {
       })
     );
 
-    const buf = serialize(new TestStruct(new InnerStruct(123)))
+    const buf = serialize(new TestStruct(new InnerStruct(123)));
     expect(deserialize(buf, TestStruct).a.b).toEqual(123);
   });
 
@@ -394,8 +399,8 @@ describe("number", () => {
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(4294967295);
   });
-  /* 
-    test("many u32", () => {
+
+  /*   test("many u32", () => {
       class Struct {
         @field({ type: "u32" })
         public a: number;
@@ -408,11 +413,25 @@ describe("number", () => {
       const instance = new Struct(1000);
       for (let i = 0; i < 100000000; i++) {
         const buf = serialize(instance);
-        const deserialized = deserialize(buf, Struct);
+        const deserialized = deserialize(buf, Struct, { object: true });
       }
-      const b = 354;
-      // expect(new Uint8Array(buf)).toEqual(new Uint8Array([57, 48, 0, 0]));
-      //expect(deserialized.a).toEqual(4294967295);
+    }); */
+
+  /*   test("many arrs", () => {
+      class Struct {
+        @field({ type: Uint8Array })
+        public a: Uint8Array;
+  
+        constructor(a: Uint8Array) {
+          this.a = a;
+        }
+      }
+      const a = 12;
+      const instance = new Struct(crypto.randomBytes(399992));
+      for (let i = 0; i < 1000000; i++) {
+        const buf = serialize(instance);
+        const deserialized = deserialize(buf, Struct, { object: true });
+      }
     }); */
 
   test("u64 is le", () => {
@@ -426,7 +445,9 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, ...new Array(7).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([3, ...new Array(7).fill(0)])
+    );
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
@@ -475,7 +496,9 @@ describe("number", () => {
     const n = BigInt(15);
     const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([15, ...new Array(15).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([15, ...new Array(15).fill(0)])
+    );
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(15));
   });
@@ -508,7 +531,9 @@ describe("number", () => {
     const n = BigInt(123);
     const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([123, ...new Array(31).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([123, ...new Array(31).fill(0)])
+    );
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
   });
@@ -524,7 +549,9 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, ...new Array(63).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([3, ...new Array(63).fill(0)])
+    );
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
@@ -566,7 +593,7 @@ describe("enum", () => {
 
   test("empty", () => {
     @variant(1)
-    class TestEnum { }
+    class TestEnum {}
     const instance = new TestEnum();
     validate(TestEnum);
     const buf = serialize(instance);
@@ -596,7 +623,7 @@ describe("enum", () => {
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super { }
+    class Super {}
 
     @variant(0)
     class Enum0 extends Super {
@@ -642,7 +669,7 @@ describe("enum", () => {
   });
 
   test("extended enum top variants", () => {
-    class SuperSuper { }
+    class SuperSuper {}
 
     class Super extends SuperSuper {
       constructor() {
@@ -697,7 +724,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants", () => {
     @variant(1)
-    class SuperSuper { }
+    class SuperSuper {}
 
     @variant(2)
     class Super extends SuperSuper {
@@ -740,12 +767,10 @@ describe("enum", () => {
     expect((deserialied as Enum1).b).toEqual(5);
   });
 
-
   test("extended enum super fields", () => {
     class SuperSuper {
-
-      @field({ type: 'u32' })
-      x: number
+      @field({ type: "u32" })
+      x: number;
 
       constructor(x: number) {
         this.x = x;
@@ -786,17 +811,18 @@ describe("enum", () => {
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     const serialized = serialize(instance);
-    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([123, 0, 0, 0, 2, 3, 4, 5]));
+    expect(new Uint8Array(serialized)).toEqual(
+      new Uint8Array([123, 0, 0, 0, 2, 3, 4, 5])
+    );
 
     const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
     expect(deserialied).toBeInstanceOf(Enum1);
     expect((deserialied as Enum1).b).toEqual(5);
   });
 
-
   test("extended enum inheritance variants, deserialization target does not matter", () => {
     @variant(1)
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Clazz extends Super {
@@ -812,7 +838,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, serialization target does matter for fields", () => {
     @variant(0)
-    class Super { }
+    class Super {}
 
     @variant(0)
     class ClazzA extends Super {
@@ -830,7 +856,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzA })
       property: ClazzA;
-      constructor() { }
+      constructor() {}
     }
 
     const s = new Struct();
@@ -841,7 +867,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, deserialization target does matter for fields", () => {
     @variant(0)
-    class Super { }
+    class Super {}
 
     @variant(0)
     class ClazzA extends Super {
@@ -859,7 +885,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzB })
       property: ClazzB;
-      constructor() { }
+      constructor() {}
     }
     // we try to deserializ [0,0] into Struct, which shouldnot be possible since property is instance of ClazzB
     expect(() =>
@@ -869,7 +895,7 @@ describe("enum", () => {
 
   test("extended enum inheritance and field value conflict is resolved", () => {
     @variant(1)
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Clazz extends Super {
@@ -892,7 +918,7 @@ describe("enum", () => {
         this.number = number;
       }
     }
-    class AA extends A { }
+    class AA extends A {}
     abstract class B {
       @field({ type: A })
       public a: A;
@@ -900,14 +926,14 @@ describe("enum", () => {
         this.a = a;
       }
     }
-    class BB extends B { }
+    class BB extends B {}
     const b = new BB(new AA(123));
 
     expect(deserialize(serialize(b), B).a.number).toEqual(123);
   });
 
   test("inheritance without variant", () => {
-    class Super { }
+    class Super {}
     class A extends Super {
       @field({ type: "u8" })
       public a: number;
@@ -933,7 +959,7 @@ describe("enum", () => {
       }
     }
     @variant(1)
-    class C2 extends B { }
+    class C2 extends B {}
 
     validate(Super);
 
@@ -947,7 +973,7 @@ describe("enum", () => {
   });
 
   test("wrapped enum", () => {
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Enum2 extends Super {
@@ -980,7 +1006,7 @@ describe("enum", () => {
   });
 
   test("enum variant array", () => {
-    class Super { }
+    class Super {}
 
     @variant([1, 2, 3])
     class Enum0 extends Super {
@@ -1034,10 +1060,10 @@ describe("enum", () => {
     }
 
     @variant("🦍")
-    class Gorilla extends Ape { }
+    class Gorilla extends Ape {}
 
     @variant("🦧")
-    class Orangutan extends Ape { }
+    class Orangutan extends Ape {}
 
     class HighCouncil {
       @field({ type: vec(Ape) })
@@ -1386,10 +1412,10 @@ describe("order", () => {
 describe("discriminator", () => {
   it("can resolve", () => {
     @variant([1, 2])
-    class A { }
-    class B extends A { }
+    class A {}
+    class B extends A {}
     @variant(3)
-    class C extends B { }
+    class C extends B {}
 
     @variant("abc")
     class D extends C {
@@ -1398,7 +1424,7 @@ describe("discriminator", () => {
     }
 
     const discriminator = getDiscriminator(D);
-    expect(discriminator).toEqual(
+    expect(new Uint8Array(discriminator)).toEqual(
       new Uint8Array([1, 2, 3, 3, 0, 0, 0, 97, 98, 99])
     );
   });
@@ -1409,7 +1435,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A { }
+    class B extends A {}
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 
@@ -1419,7 +1445,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A { }
+    class B extends A {}
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 });
@@ -1447,7 +1473,7 @@ describe("Validation", () => {
   test("variant conflict, index", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() { }
+        constructor() {}
       }
       @variant(0) // Same as B
       class A extends TestStruct {
@@ -1468,7 +1494,7 @@ describe("Validation", () => {
 
   test("undefined struct error", () => {
     class Value {
-      constructor() { }
+      constructor() {}
     }
 
     class Container {
@@ -1495,7 +1521,7 @@ describe("Validation", () => {
 
   test("variant type conflict", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1514,9 +1540,9 @@ describe("Validation", () => {
   });
 
   test("variant type conflict inheritance", () => {
-    class SuperSuper { }
+    class SuperSuper {}
 
-    class Super extends SuperSuper { }
+    class Super extends SuperSuper {}
 
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1535,7 +1561,7 @@ describe("Validation", () => {
   });
 
   test("variant type conflict array length", () => {
-    class Super { }
+    class Super {}
 
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1555,7 +1581,7 @@ describe("Validation", () => {
 
   test("error for non optimized code", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     class A extends Super {
@@ -1592,14 +1618,14 @@ describe("Validation", () => {
 
   test("valid dependency deep", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     @variant(0)
-    class A extends Super { }
+    class A extends Super {}
 
     @variant(1)
-    class B extends A { }
+    class B extends A {}
 
     class Clazz {
       @field({ type: Super })
@@ -1618,14 +1644,14 @@ describe("Validation", () => {
 
   test("invalid dependency runtime", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     @variant(0)
-    class A extends Super { }
+    class A extends Super {}
 
     @variant(1)
-    class Other { }
+    class Other {}
 
     class Clazz {
       @field({ type: Super })
@@ -1643,7 +1669,7 @@ describe("Validation", () => {
 
   test("error for non optimized code on deserialization", () => {
     class TestStruct {
-      constructor() { }
+      constructor() {}
     }
 
     class A extends TestStruct {
@@ -1663,7 +1689,7 @@ describe("Validation", () => {
   test("variant conflict, indices", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() { }
+        constructor() {}
       }
       @variant([0, 1, 2]) // Same as B
       class A extends TestStruct {
