@@ -1,21 +1,29 @@
 import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
+import { IntegerType } from './types.js';
+const INITIAL_LENGTH = 20;
+const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for v8 fn optimization 
+  if ((globalThis as any).Buffer) {
+    return (globalThis as any).Buffer.allocUnsafe(len)
+  }
+  return new Uint8Array(len)
+}
 
-const INITIAL_LENGTH = 8;
 
 export class BinaryWriter {
   _buf: Uint8Array;
   _length: number;
 
-  public constructor() {
-    this._buf = new Uint8Array(INITIAL_LENGTH);
+  public constructor(initialLength = INITIAL_LENGTH) {
+    this._buf = allocUnsafe(initialLength);
     this._length = 0;
   }
 
   maybeResize(toFit: number) {
     if (this._buf.byteLength < toFit + this._length) {
-      const newArr = new Uint8Array(this._buf.byteLength + toFit + INITIAL_LENGTH); // add some extra padding (INITIAL_LENGTH)
+      // console.log('resize!', this._buf.byteLength, toFit, toFit + this._length)
+      const newArr = allocUnsafe(this._buf.byteLength + toFit + INITIAL_LENGTH); // add some extra padding (INITIAL_LENGTH)
       newArr.set(this._buf);
       this._buf = newArr;
     }
@@ -72,12 +80,39 @@ export class BinaryWriter {
     this._length += 64;
   }
 
+  public u(value: number | bigint, encoding: IntegerType) {
+    if (encoding === 'u8') {
+      this.u8(value as number);
+    }
+    else if (encoding === 'u16') {
+      this.u16(value as number);
+    }
+    else if (encoding === 'u32') {
+      this.u32(value as number);
+    }
+    else if (encoding === 'u64') {
+      this.u64(value);
+    }
+    else if (encoding === 'u128') {
+      this.u128(value);
+    }
+    else if (encoding === 'u256') {
+      this.u256(value);
+    }
+    else if (encoding === 'u512') {
+      this.u512(value);
+    }
+    else {
+      throw new Error("Unsupported encoding: " + encoding)
+    }
+  }
+
   public string(str: string) {
     const len = utf8.length(str);
     this.u32(len);
     this.maybeResize(len)
-    this._length += utf8.write(str, this._buf, this._length);
-
+    utf8.write(str, this._buf, this._length);
+    this._length += len
   }
 
   public uint8Array(array: Uint8Array) {
@@ -94,7 +129,7 @@ export class BinaryWriter {
 
   public toArray(): Uint8Array {
     if (this._buf.length !== this._length)
-      return this._buf.slice(0, this._length);
+      return this._buf.subarray(0, this._length);
     return this._buf
   }
 }
@@ -189,20 +224,47 @@ export class BinaryReader {
     return toBigIntLE(buf)
   }
 
+
+  public u(encoding: IntegerType) {
+    if (encoding === 'u8') {
+      return this.u8();
+    }
+    else if (encoding === 'u16') {
+      return this.u16();
+    }
+    else if (encoding === 'u32') {
+      return this.u32();
+    }
+    else if (encoding === 'u64') {
+      return this.u64();
+    }
+    else if (encoding === 'u128') {
+      return this.u128();
+    }
+    else if (encoding === 'u256') {
+      return this.u256();
+    }
+    else if (encoding === 'u512') {
+      return this.u512();
+    }
+    else {
+      throw new Error("Unsupported encoding: " + encoding)
+    }
+  }
+
   private buffer(len: number): Uint8Array {
     if (this._offset + len > this._buf.byteLength) {
       throw new BorshError(`Expected buffer length ${len} isn't within bounds`);
     }
     const result = this._buf.slice(this._offset, this._offset + len);
     this._offset += len;
-    return new Uint8Array(result);
+    return result;
   }
 
   @handlingRangeError
   string(): string {
     const len = this.u32();
     try {
-      // NOTE: Using TextDecoder to fail on invalid UTF-8
       const string = utf8.read(this._buf, this._offset, this._offset + len);
       this._offset += len
       return string;
@@ -214,13 +276,13 @@ export class BinaryReader {
   @handlingRangeError
   uint8Array(): Uint8Array {
     const len = this.u32();
-    return new Uint8Array(this.buffer(len));
+    return this.buffer(len);
   }
 
   @handlingRangeError
   readArray(fn: any): any[] {
     const len = this.u32();
-    const result = Array<any>();
+    const result = new Array<any>();
     for (let i = 0; i < len; ++i) {
       result.push(fn());
     }

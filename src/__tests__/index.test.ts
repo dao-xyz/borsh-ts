@@ -14,6 +14,7 @@ import {
   BorshError,
 } from "../index.js";
 
+
 describe("struct", () => {
   test("constructor is not called", () => {
     let constructorInvokation = 0;
@@ -99,23 +100,31 @@ describe("struct", () => {
     const bn123 = BigInt(123);
     const instance = new TestStruct({ a: 1, b: bn123 });
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(1);
     expect(deserialized.b).toEqual(BigInt(123));
     const bufAgain = serialize(deserialized);
-    expect(bufAgain).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
+    expect(new Uint8Array(bufAgain)).toEqual(new Uint8Array([1, 123, 0, 0, 0, 0, 0, 0, 0]));
   });
 
   test("struct fields", () => {
     class InnerStruct {
       @field({ type: "u8" })
       public b: number;
+
+      constructor(b: number) {
+        this.b = b;
+      }
     }
 
     class TestStruct {
       @field({ type: InnerStruct })
       public a: InnerStruct;
+
+      constructor(a: InnerStruct) {
+        this.a = a;
+      }
     }
 
     validate(TestStruct);
@@ -130,6 +139,9 @@ describe("struct", () => {
         fields: [{ key: "b", type: "u8" }],
       })
     );
+
+    const buf = serialize(new TestStruct(new InnerStruct(123)))
+    expect(deserialize(buf, TestStruct).a.b).toEqual(123);
   });
 
   test("gaps", () => {
@@ -184,12 +196,12 @@ describe("bool", () => {
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const instance = new TestStruct({ a: true, b: false });
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([1, 0]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 0]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(true);
     expect(deserialized.b).toEqual(false);
     const bufAgain = serialize(deserialized);
-    expect(bufAgain).toEqual(new Uint8Array([1, 0]));
+    expect(new Uint8Array(bufAgain)).toEqual(new Uint8Array([1, 0]));
   });
 });
 
@@ -208,7 +220,7 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
-    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
   });
@@ -227,7 +239,7 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
-    expect(buf).toEqual(new Uint8Array([1, 2, 3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
   });
@@ -278,9 +290,9 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: new Uint8Array([1, 2, 3]) }));
-    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
-    expect(deserialized.a).toEqual(new Uint8Array([1, 2, 3]));
+    expect(new Uint8Array(deserialized.a)).toEqual(new Uint8Array([1, 2, 3]));
   });
 
   test("vec struct", () => {
@@ -313,7 +325,7 @@ describe("arrays", () => {
       new Element({ a: 3 }),
     ];
     const buf = serialize(new TestStruct({ a: arr }));
-    expect(buf).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(arr);
   });
@@ -331,7 +343,7 @@ describe("number", () => {
     }
     const instance = new Struct(3);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(3);
   });
@@ -362,7 +374,7 @@ describe("number", () => {
     }
     const instance = new Struct(3);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, 0]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(3);
   });
@@ -378,10 +390,31 @@ describe("number", () => {
     }
     const instance = new Struct(4294967295);
     const buf = serialize(instance);
-    // expect(buf).toEqual(new Uint8Array([57, 48, 0, 0]));
+    // expect(new Uint8Array(buf)).toEqual(new Uint8Array([57, 48, 0, 0]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(4294967295);
   });
+  /* 
+    test("many u32", () => {
+      class Struct {
+        @field({ type: "u32" })
+        public a: number;
+  
+        constructor(a: number) {
+          this.a = a;
+        }
+      }
+      const a = 12;
+      const instance = new Struct(1000);
+      for (let i = 0; i < 100000000; i++) {
+        const buf = serialize(instance);
+        const deserialized = deserialize(buf, Struct);
+      }
+      const b = 354;
+      // expect(new Uint8Array(buf)).toEqual(new Uint8Array([57, 48, 0, 0]));
+      //expect(deserialized.a).toEqual(4294967295);
+    }); */
+
   test("u64 is le", () => {
     class Struct {
       @field({ type: "u64" })
@@ -393,7 +426,7 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, ...new Array(7).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, ...new Array(7).fill(0)]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
@@ -442,7 +475,7 @@ describe("number", () => {
     const n = BigInt(15);
     const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([15, ...new Array(15).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([15, ...new Array(15).fill(0)]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(15));
   });
@@ -475,7 +508,7 @@ describe("number", () => {
     const n = BigInt(123);
     const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([123, ...new Array(31).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([123, ...new Array(31).fill(0)]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
   });
@@ -491,7 +524,7 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([3, ...new Array(63).fill(0)]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, ...new Array(63).fill(0)]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
   });
@@ -526,18 +559,18 @@ describe("enum", () => {
     const instance = new TestEnum(3);
     validate(TestEnum);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([1, 3]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 3]));
     const deserialized = deserialize(buf, TestEnum);
     expect(deserialized.a).toEqual(3);
   });
 
   test("empty", () => {
     @variant(1)
-    class TestEnum {}
+    class TestEnum { }
     const instance = new TestEnum();
     validate(TestEnum);
     const buf = serialize(instance);
-    expect(buf).toEqual(new Uint8Array([1]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1]));
   });
 
   test("variant dependency is treaded as struct", () => {
@@ -563,7 +596,7 @@ describe("enum", () => {
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super {}
+    class Super { }
 
     @variant(0)
     class Enum0 extends Super {
@@ -601,7 +634,7 @@ describe("enum", () => {
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(new Uint8Array([1, 4]));
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 4]));
 
     const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum1);
@@ -609,7 +642,7 @@ describe("enum", () => {
   });
 
   test("extended enum top variants", () => {
-    class SuperSuper {}
+    class SuperSuper { }
 
     class Super extends SuperSuper {
       constructor() {
@@ -639,12 +672,23 @@ describe("enum", () => {
       }
     }
 
+    @variant(66)
+    class EnumX extends SuperSuper {
+      @field({ type: "u8" })
+      public c: number;
+
+      constructor(c: number) {
+        super();
+        this.c = c;
+      }
+    }
+
     const instance = new Enum1(4);
     //  validate([Enum0, Enum1, Super, SuperSuper]);
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(new Uint8Array([1, 4]));
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 4]));
 
     const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
     expect(deserialied).toBeInstanceOf(Enum1);
@@ -653,7 +697,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants", () => {
     @variant(1)
-    class SuperSuper {}
+    class SuperSuper { }
 
     @variant(2)
     class Super extends SuperSuper {
@@ -689,16 +733,70 @@ describe("enum", () => {
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
 
     const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
     expect(deserialied).toBeInstanceOf(Enum1);
     expect((deserialied as Enum1).b).toEqual(5);
   });
 
+
+  test("extended enum super fields", () => {
+    class SuperSuper {
+
+      @field({ type: 'u32' })
+      x: number
+
+      constructor(x: number) {
+        this.x = x;
+      }
+    }
+
+    @variant(2)
+    class Super extends SuperSuper {
+      constructor(x: number) {
+        super(x);
+      }
+    }
+
+    @variant([3, 100])
+    class Enum0 extends Super {
+      @field({ type: "u8" })
+      public a: number;
+
+      constructor(a: number, x: number) {
+        super(x);
+        this.a = a;
+      }
+    }
+
+    @variant([3, 4])
+    class Enum1 extends Super {
+      @field({ type: "u8" })
+      public b: number;
+
+      constructor(b: number, x: number) {
+        super(x);
+        this.b = b;
+      }
+    }
+
+    const instance = new Enum1(5, 123);
+    //  validate([Enum0, Enum1, Super, SuperSuper]);
+    expect(getSchema(Enum0)).toBeDefined();
+    expect(getSchema(Enum1)).toBeDefined();
+    const serialized = serialize(instance);
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([123, 0, 0, 0, 2, 3, 4, 5]));
+
+    const deserialied = deserialize(new Uint8Array(serialized), SuperSuper);
+    expect(deserialied).toBeInstanceOf(Enum1);
+    expect((deserialied as Enum1).b).toEqual(5);
+  });
+
+
   test("extended enum inheritance variants, deserialization target does not matter", () => {
     @variant(1)
-    class Super {}
+    class Super { }
 
     @variant(2)
     class Clazz extends Super {
@@ -714,7 +812,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, serialization target does matter for fields", () => {
     @variant(0)
-    class Super {}
+    class Super { }
 
     @variant(0)
     class ClazzA extends Super {
@@ -732,7 +830,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzA })
       property: ClazzA;
-      constructor() {}
+      constructor() { }
     }
 
     const s = new Struct();
@@ -743,7 +841,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, deserialization target does matter for fields", () => {
     @variant(0)
-    class Super {}
+    class Super { }
 
     @variant(0)
     class ClazzA extends Super {
@@ -761,7 +859,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzB })
       property: ClazzB;
-      constructor() {}
+      constructor() { }
     }
     // we try to deserializ [0,0] into Struct, which shouldnot be possible since property is instance of ClazzB
     expect(() =>
@@ -771,7 +869,7 @@ describe("enum", () => {
 
   test("extended enum inheritance and field value conflict is resolved", () => {
     @variant(1)
-    class Super {}
+    class Super { }
 
     @variant(2)
     class Clazz extends Super {
@@ -794,7 +892,7 @@ describe("enum", () => {
         this.number = number;
       }
     }
-    class AA extends A {}
+    class AA extends A { }
     abstract class B {
       @field({ type: A })
       public a: A;
@@ -802,14 +900,14 @@ describe("enum", () => {
         this.a = a;
       }
     }
-    class BB extends B {}
+    class BB extends B { }
     const b = new BB(new AA(123));
 
     expect(deserialize(serialize(b), B).a.number).toEqual(123);
   });
 
   test("inheritance without variant", () => {
-    class Super {}
+    class Super { }
     class A extends Super {
       @field({ type: "u8" })
       public a: number;
@@ -835,21 +933,21 @@ describe("enum", () => {
       }
     }
     @variant(1)
-    class C2 extends B {}
+    class C2 extends B { }
 
     validate(Super);
 
     const serialized = serialize(new C1({ a: 1, b: 2 }));
-    expect(serialized).toEqual(new Uint8Array([1, 2, 0]));
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 2, 0]));
 
-    const deserialied = deserialize(new Uint8Array(serialized), Super);
+    const deserialied = deserialize(serialized, Super);
     expect(deserialied).toBeInstanceOf(C1);
     expect((deserialied as C1).a).toEqual(1);
     expect((deserialied as C1).b).toEqual(2);
   });
 
   test("wrapped enum", () => {
-    class Super {}
+    class Super { }
 
     @variant(2)
     class Enum2 extends Super {
@@ -875,14 +973,14 @@ describe("enum", () => {
     expect(getSchema(Enum2)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(new Uint8Array([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 2, 3])); // 1 for option, 2 for variant, 3 for value
     const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum2);
     expect((deserialied.enum as Enum2).a).toEqual(3);
   });
 
   test("enum variant array", () => {
-    class Super {}
+    class Super { }
 
     @variant([1, 2, 3])
     class Enum0 extends Super {
@@ -919,7 +1017,7 @@ describe("enum", () => {
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
     const serialized = serialize(instance);
-    expect(serialized).toEqual(new Uint8Array([1, 2, 4, 5]));
+    expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 2, 4, 5]));
     const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.enum).toBeInstanceOf(Enum1);
     expect((deserialied.enum as Enum0).a).toEqual(5);
@@ -936,10 +1034,10 @@ describe("enum", () => {
     }
 
     @variant("🦍")
-    class Gorilla extends Ape {}
+    class Gorilla extends Ape { }
 
     @variant("🦧")
-    class Orangutan extends Ape {}
+    class Orangutan extends Ape { }
 
     class HighCouncil {
       @field({ type: vec(Ape) })
@@ -982,12 +1080,12 @@ describe("option", () => {
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const bufSome = serialize(new TestStruct(123));
-    expect(bufSome).toEqual(new Uint8Array([1, 123]));
+    expect(new Uint8Array(bufSome)).toEqual(new Uint8Array([1, 123]));
     const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(123);
 
     const bufNone = serialize(new TestStruct(undefined));
-    expect(bufNone).toEqual(new Uint8Array([0]));
+    expect(new Uint8Array(bufNone)).toEqual(new Uint8Array([0]));
     const deserialized = deserialize(new Uint8Array(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
   });
@@ -1018,12 +1116,12 @@ describe("option", () => {
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
     const bufSome = serialize(new TestStruct(new Element(123)));
-    expect(bufSome).toEqual(new Uint8Array([1, 123]));
+    expect(new Uint8Array(bufSome)).toEqual(new Uint8Array([1, 123]));
     const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
     expect(deserializedSome.a).toEqual(new Element(123));
 
     const bufNone = serialize(new TestStruct(undefined));
-    expect(bufNone).toEqual(new Uint8Array([0]));
+    expect(new Uint8Array(bufNone)).toEqual(new Uint8Array([0]));
     const deserialized = deserialize(new Uint8Array(bufNone), TestStruct);
     expect(deserialized.a).toBeUndefined();
   });
@@ -1050,7 +1148,7 @@ describe("string", () => {
     validate(TestStruct);
 
     const bufSome = serialize(new TestStruct("a string 😊", 123, "that ends"));
-    expect(bufSome).toEqual(
+    expect(new Uint8Array(bufSome)).toEqual(
       new Uint8Array([
         13, 0, 0, 0, 97, 32, 115, 116, 114, 105, 110, 103, 32, 240, 159, 152,
         138, 123, 9, 0, 0, 0, 116, 104, 97, 116, 32, 101, 110, 100, 115,
@@ -1083,9 +1181,9 @@ describe("bool", () => {
       ],
     });
     expect(getSchema(TestStruct)).toEqual(expectedResult);
-    const bufSome = serialize(new TestStruct(true));
-    expect(bufSome).toEqual(new Uint8Array([1]));
-    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
+    const buf = serialize(new TestStruct(true));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1]));
+    const deserializedSome = deserialize(new Uint8Array(buf), TestStruct);
     expect(deserializedSome.a).toEqual(true);
   });
 });
@@ -1182,13 +1280,13 @@ describe("override", () => {
 
     // with value
     const serialized = serialize(new TestStruct(123));
-    expect(serialized).toStrictEqual(new Uint8Array([1, 123]));
+    expect(new Uint8Array(serialized)).toStrictEqual(new Uint8Array([1, 123]));
     const deserialied = deserialize(new Uint8Array(serialized), TestStruct);
     expect(deserialied.number).toEqual(123);
 
     // without value
     const serializedNone = serialize(new TestStruct(undefined));
-    expect(serializedNone).toStrictEqual(new Uint8Array([0]));
+    expect(new Uint8Array(serializedNone)).toStrictEqual(new Uint8Array([0]));
   });
 });
 
@@ -1288,10 +1386,10 @@ describe("order", () => {
 describe("discriminator", () => {
   it("can resolve", () => {
     @variant([1, 2])
-    class A {}
-    class B extends A {}
+    class A { }
+    class B extends A { }
     @variant(3)
-    class C extends B {}
+    class C extends B { }
 
     @variant("abc")
     class D extends C {
@@ -1311,7 +1409,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A {}
+    class B extends A { }
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 
@@ -1321,7 +1419,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A {}
+    class B extends A { }
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 });
@@ -1349,7 +1447,7 @@ describe("Validation", () => {
   test("variant conflict, index", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() {}
+        constructor() { }
       }
       @variant(0) // Same as B
       class A extends TestStruct {
@@ -1370,7 +1468,7 @@ describe("Validation", () => {
 
   test("undefined struct error", () => {
     class Value {
-      constructor() {}
+      constructor() { }
     }
 
     class Container {
@@ -1397,7 +1495,7 @@ describe("Validation", () => {
 
   test("variant type conflict", () => {
     class Super {
-      constructor() {}
+      constructor() { }
     }
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1416,9 +1514,9 @@ describe("Validation", () => {
   });
 
   test("variant type conflict inheritance", () => {
-    class SuperSuper {}
+    class SuperSuper { }
 
-    class Super extends SuperSuper {}
+    class Super extends SuperSuper { }
 
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1437,7 +1535,7 @@ describe("Validation", () => {
   });
 
   test("variant type conflict array length", () => {
-    class Super {}
+    class Super { }
 
     @variant([0, 0]) // Same as B
     class A extends Super {
@@ -1457,7 +1555,7 @@ describe("Validation", () => {
 
   test("error for non optimized code", () => {
     class Super {
-      constructor() {}
+      constructor() { }
     }
 
     class A extends Super {
@@ -1494,14 +1592,14 @@ describe("Validation", () => {
 
   test("valid dependency deep", () => {
     class Super {
-      constructor() {}
+      constructor() { }
     }
 
     @variant(0)
-    class A extends Super {}
+    class A extends Super { }
 
     @variant(1)
-    class B extends A {}
+    class B extends A { }
 
     class Clazz {
       @field({ type: Super })
@@ -1520,14 +1618,14 @@ describe("Validation", () => {
 
   test("invalid dependency runtime", () => {
     class Super {
-      constructor() {}
+      constructor() { }
     }
 
     @variant(0)
-    class A extends Super {}
+    class A extends Super { }
 
     @variant(1)
-    class Other {}
+    class Other { }
 
     class Clazz {
       @field({ type: Super })
@@ -1545,7 +1643,7 @@ describe("Validation", () => {
 
   test("error for non optimized code on deserialization", () => {
     class TestStruct {
-      constructor() {}
+      constructor() { }
     }
 
     class A extends TestStruct {
@@ -1565,7 +1663,7 @@ describe("Validation", () => {
   test("variant conflict, indices", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() {}
+        constructor() { }
       }
       @variant([0, 1, 2]) // Same as B
       class A extends TestStruct {

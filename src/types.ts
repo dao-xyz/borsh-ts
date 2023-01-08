@@ -25,21 +25,25 @@ export const extendingClasses = (clazz: any): any[] => {
   return ret;
 };
 
+export const getOffset = (clazz: any) => extendingClasses(clazz).length;
+
 export interface OverrideType<T> {
   serialize: (arg: T, writer: BinaryWriter) => void;
   deserialize: (reader: BinaryReader) => T;
 }
-export type PrimitiveType = "bool"
-  | "u8"
+export type IntegerType = "u8"
   | "u16"
   | "u32"
   | "u64"
   | "u128"
   | "u256"
   | "u512"
+
+export type PrimitiveType = "bool"
   | "f32"
   | "f64"
   | "string"
+  | IntegerType
 
 export type FieldType =
   PrimitiveType
@@ -69,13 +73,21 @@ export class WrappedType {
 }
 
 export class OptionKind extends WrappedType { }
+
 export const option = (type: FieldType): OptionKind => {
   return new OptionKind(type);
 };
 
-export class VecKind extends WrappedType { }
-export const vec = (type: FieldType): VecKind => {
-  return new VecKind(type);
+export class VecKind extends WrappedType {
+  sizeEncoding: IntegerType
+  constructor(elementType: FieldType, sizeEncoding: IntegerType) {
+    super(elementType)
+    this.sizeEncoding = sizeEncoding;
+  }
+}
+
+export const vec = (type: FieldType, sizeEncoding: IntegerType = 'u32'): VecKind => {
+  return new VecKind(type, sizeEncoding);
 };
 
 export class FixedArrayKind extends WrappedType {

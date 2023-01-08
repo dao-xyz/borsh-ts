@@ -23,20 +23,20 @@ export function writeBufferLEBigInt(num: bigint | number, width: number, buffer:
 
 export function writeUInt32LE(value: number, buf: Uint8Array, offset: number) {
     checkInt(value, 0, 0xffffffff, 1);
-    buf[offset++] = value;
+    buf[offset] = value;
     value = value >>> 8;
-    buf[offset++] = value;
+    buf[offset + 1] = value;
     value = value >>> 8;
-    buf[offset++] = value;
+    buf[offset + 2] = value;
     value = value >>> 8;
-    buf[offset++] = value;
+    buf[offset + 3] = value;
 }
 
 
 export function writeUInt16LE(value: number, buf: Uint8Array, offset: number) {
     checkInt(value, 0, 0xffff, 1);
-    buf[offset++] = value;
-    buf[offset++] = (value >>> 8);
+    buf[offset] = value;
+    buf[offset + 1] = (value >>> 8);
 }
 
 export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
@@ -46,13 +46,13 @@ export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
         throw new Error('Out of bounds');
 
     const lo = first +
-        buf[++offset] * 2 ** 8 +
-        buf[++offset] * 2 ** 16 +
-        buf[++offset] * 2 ** 24;
+        buf[offset + 1] * 2 ** 8 +
+        buf[offset + 2] * 2 ** 16 +
+        buf[offset + 3] * 2 ** 24;
 
-    const hi = buf[++offset] +
-        buf[++offset] * 2 ** 8 +
-        buf[++offset] * 2 ** 16 +
+    const hi = buf[offset + 4] +
+        buf[offset + 5] * 2 ** 8 +
+        buf[offset + 6] * 2 ** 16 +
         last * 2 ** 24;
 
     return BigInt(lo) + (BigInt(hi) << 32n);
@@ -77,8 +77,8 @@ export const readUInt32LE = (buffer: Uint8Array, offset: number) => {
         throw new Error('Out of bounds');
 
     return first +
-        buffer[++offset] * 2 ** 8 +
-        buffer[++offset] * 2 ** 16 +
+        buffer[offset + 1] * 2 ** 8 +
+        buffer[offset + 2] * 2 ** 16 +
         last * 2 ** 24;
 }
 
