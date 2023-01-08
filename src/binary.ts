@@ -2,7 +2,7 @@ import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt1
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 import { IntegerType } from './types.js';
-const INITIAL_LENGTH = 20;
+
 const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for v8 fn optimization 
   if ((globalThis as any).Buffer) {
     return (globalThis as any).Buffer.allocUnsafe(len)
@@ -13,71 +13,106 @@ const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for
 
 export class BinaryWriter {
   _buf: Uint8Array;
-  _length: number;
+  totalSize: number;
+  _writes: () => void;
 
-  public constructor(initialLength = INITIAL_LENGTH) {
-    this._buf = allocUnsafe(initialLength);
-    this._length = 0;
+  public constructor() {
+    this.totalSize = 0;
+    this._writes = () => { };
   }
 
-  maybeResize(toFit: number) {
-    if (this._buf.byteLength < toFit + this._length) {
-      // console.log('resize!', this._buf.byteLength, toFit, toFit + this._length)
-      const newArr = allocUnsafe(this._buf.byteLength + toFit + INITIAL_LENGTH); // add some extra padding (INITIAL_LENGTH)
-      newArr.set(this._buf);
-      this._buf = newArr;
-    }
 
-  }
 
   public bool(value: boolean) {
-    this.maybeResize(1);
-    this._buf[this._length] = value ? 1 : 0;
-    this._length += 1;
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      this._buf[offset] = value ? 1 : 0;
+    }
+    this.totalSize += 1;
+
   }
 
+
   public u8(value: number) {
-    this.maybeResize(1);
-    checkInt(value, 0, 255, 1);
-    this._buf[this._length] = value;
-    this._length += 1;
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      this._buf[offset] = value;
+    }
+    this.totalSize += 1;
+
   }
 
   public u16(value: number) {
-    this.maybeResize(2);
-    writeUInt16LE(value, this._buf, this._length)
-    this._length += 2;
+
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeUInt16LE(value, this._buf, offset)
+    }
+    this.totalSize += 2;
   }
 
   public u32(value: number) {
-    this.maybeResize(4);
-    writeUInt32LE(value, this._buf, this._length)
-    this._length += 4;
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last()
+      writeUInt32LE(value, this._buf, offset)
+    }
+    this.totalSize += 4;
 
   }
 
   public u64(value: number | bigint) {
-    this.maybeResize(8);
-    writeBufferLEBigInt(value, 8, this._buf, this._length)
-    this._length += 8;
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeBufferLEBigInt(value, 8, this._buf, offset)
+    }
+    this.totalSize += 8;
+
+
   }
 
   public u128(value: number | bigint) {
-    this.maybeResize(16);
-    writeBufferLEBigInt(value, 16, this._buf, this._length)
-    this._length += 16;
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeBufferLEBigInt(value, 16, this._buf, offset)
+    }
+    this.totalSize += 16;
+
   }
 
   public u256(value: number | bigint) {
-    this.maybeResize(32);
-    writeBufferLEBigInt(value, 32, this._buf, this._length)
-    this._length += 32;
+
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeBufferLEBigInt(value, 32, this._buf, offset)
+    }
+    this.totalSize += 32;
+
   }
 
   public u512(value: number | bigint) {
-    this.maybeResize(64);
-    writeBufferLEBigInt(value, 64, this._buf, this._length)
-    this._length += 64;
+    let offset = this.totalSize;
+
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeBufferLEBigInt(value, 64, this._buf, offset)
+    }
+    this.totalSize += 64;
+
   }
 
   public u(value: number | bigint, encoding: IntegerType) {
@@ -109,28 +144,38 @@ export class BinaryWriter {
 
   public string(str: string) {
     const len = utf8.length(str);
-    this.u32(len);
-    this.maybeResize(len)
-    utf8.write(str, this._buf, this._length);
-    this._length += len
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeUInt32LE(len, this._buf, offset)
+      utf8.write(str, this._buf, offset + 4);
+    }
+    this.totalSize += 4 + len;
+
   }
 
   public uint8Array(array: Uint8Array) {
-    this.maybeResize(array.length + 4);
-    this.u32(array.length)
-    this.buffer(array);
+    let offset = this.totalSize;
+    const last = this._writes;
+    this._writes = () => {
+      last();
+      writeUInt32LE(array.length, this._buf, offset)
+      this._buf.set(array, offset + 4);
+    }
+    this.totalSize += array.length + 4;
+
   }
 
-  private buffer(buffer: Uint8Array) {
-    this.maybeResize(buffer.byteLength);
-    this._buf.set(buffer, this._length);
-    this._length += buffer.byteLength;
-  }
 
-  public toArray(): Uint8Array {
-    if (this._buf.length !== this._length)
+  public finalize(): Uint8Array {
+    /* if (this._buf.length !== this._length)
       return this._buf.subarray(0, this._length);
-    return this._buf
+    return this._buf */
+    this._buf = allocUnsafe(this.totalSize);
+    this._writes()
+    return this._buf;
+
   }
 }
 

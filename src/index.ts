@@ -6,7 +6,6 @@ import {
   VecKind,
   SimpleField,
   CustomField,
-  extendingClasses,
   Constructor,
   AbstractType,
   PrimitiveType,
@@ -99,44 +98,31 @@ export function serializeStruct(
     obj.borshSerialize(writer);
     return;
   }
-  /* 
-  
-  
-    // Serialize content as struct, we do not invoke serializeStruct since it will cause circular calls to this method
-    const structSchemas = getSubMostSchemas(obj.constructor);
-  
-    // If Schema has fields, "structSchema" will be non empty and "fields" will exist
-    if (structSchemas.length == 0) {
-      throw new BorshError(`Class ${obj.constructor.name} is missing in schema`);
-    }
-   */
-
   var i = 0;
   let once = false;
   const ctor = obj.constructor;
   while (true) {
-    let schemas = getSchemas(ctor, i++);
-    if (schemas) {
+    let schema = getSchemas(ctor, i++);
+    if (schema) {
       once = true;
-      for (const v of schemas) {
-        const index = v.variant;
-        if (index != undefined) {
-          if (typeof index === "number") {
-            writer.u8(index);
-          } else if (Array.isArray(index)) {
-            for (const i of index) {
-              writer.u8(i);
-            }
-          }
-          else { // is string
-            writer.string(index);
+      const index = schema.variant;
+      if (index != undefined) {
+        if (typeof index === "number") {
+          writer.u8(index);
+        } else if (Array.isArray(index)) {
+          for (const i of index) {
+            writer.u8(i);
           }
         }
-
-        for (const field of v.fields) {
-          serializeField(field.key, obj[field.key], field.type, writer);
+        else { // is string
+          writer.string(index);
         }
       }
+
+      for (const field of schema.fields) {
+        serializeField(field.key, obj[field.key], field.type, writer);
+      }
+
     }
 
     else if (once) {
@@ -156,7 +142,7 @@ export function serialize(
 ): Uint8Array {
   const writer = new BinaryWriter();
   serializeStruct(obj, writer);
-  return writer.toArray();
+  return writer.finalize();
 }
 
 function deserializeField(
@@ -244,37 +230,34 @@ function deserializeStruct(targetClazz: any, reader: BinaryReader, options?: Des
 }
 
 const handle = (currClazz: Function, result: any, reader: BinaryReader, offset: number, options: any): Function => {
-  let structSchemas = getSchemas(currClazz, offset);
-  if (offset === 0 && structSchemas?.length) {
-    let index = structSchemas.length > 0 ? getVariantIndex(structSchemas[0]) : undefined;
-    if (index != null) {
-      // It is an (stupid) enum, but we deserialize into its variant directly
-      // This means we should omit the variant index
-      if (typeof index === "number") {
-        reader.u8();
-      } else if (Array.isArray(index)) {
-        reader._offset += index.length; // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
-      }
-      else { // string
-        reader.string();
-      }
-    }
-  }
-
-  if (structSchemas) {
-    for (const structSchema of structSchemas) {
-      if (structSchema) {
-        for (const field of structSchema.fields) {
-          result[field.key] = deserializeField(
-            field.key,
-            field.type,
-            reader,
-            options
-          );
+  let structSchema = getSchemas(currClazz, offset);
+  if (structSchema) {
+    if (offset === 0) {
+      let index = getVariantIndex(structSchema);
+      if (index != null) {
+        // It is an (stupid) enum, but we deserialize into its variant directly
+        // This means we should omit the variant index
+        if (typeof index === "number") {
+          reader.u8();
+        } else if (Array.isArray(index)) {
+          reader._offset += index.length; // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
+        }
+        else { // string
+          reader.string();
         }
       }
     }
+    for (const field of structSchema.fields) {
+      result[field.key] = deserializeField(
+        field.key,
+        field.type,
+        reader,
+        options
+      );
+    }
   }
+
+
 
   let next = undefined;
   let nextOffset = undefined;
@@ -285,7 +268,7 @@ const handle = (currClazz: Function, result: any, reader: BinaryReader, offset: 
     let variantString: string = undefined;
 
     for (const [actualClazz, dependency] of dependencies) {
-      const variantIndex = getVariantIndex(dependency.schemas[dependency.schemas.length - 1]);
+      const variantIndex = getVariantIndex(dependency.schema);
       if (variantIndex !== undefined) {
         if (typeof variantIndex === "number") {
 
@@ -417,11 +400,11 @@ export function deserializeUnchecked<T>(
 }
 
 
-const getOrCreateStructMeta = (clazz: any, offset: number): StructKind[] => {
+const getOrCreateStructMeta = (clazz: any, offset: number): StructKind => {
 
-  let schemas: StructKind[] = getSchemas(clazz, offset)
-  if (!schemas) {
-    schemas = [new StructKind()];
+  let schema: StructKind = getSchemas(clazz, offset)
+  if (!schema) {
+    schema = new StructKind();
   }
   /*  if (!getFlag(clazz)) {
      if (!schemas) {
@@ -430,8 +413,8 @@ const getOrCreateStructMeta = (clazz: any, offset: number): StructKind[] => {
      schemas.push(new StructKind())
      setFlag(clazz)
    } */
-  setSchema(clazz, schemas, offset);
-  return schemas
+  setSchema(clazz, schema, offset);
+  return schema
 }
 const setDependencyToProtoType = (ctor: Function, offset: number) => {
   let proto = Object.getPrototypeOf(ctor);
@@ -527,7 +510,7 @@ const checkClazzesCompatible = (clazzA: Constructor<any> | AbstractType<any>, cl
   return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
 
-const getFullPrototypeName = (clazz: Function) => {
+/* const getFullPrototypeName = (clazz: Function) => {
   let str = clazz.name;
   while (Object.getPrototypeOf(clazz).prototype != undefined) {
     clazz = Object.getPrototypeOf(clazz);
@@ -543,33 +526,32 @@ const getClassID = (ctor: Function) => {
 const getDependencyKey = (ctor: Function) => {
 
   return 456;// "_borsh_dependency_" + getClassID(ctor);
-}
+} */
 
 const getDependencies = (ctor: Function, offset: number): Function[] | undefined => {
-  return ctor.prototype.constructor[offset + 100]//[getDependencyKey(ctor)]
+  return ctor.prototype[offset + 100]//[getDependencyKey(ctor)]
 
 }
 
 const setDependencies = (ctor: Function, offset: number, dependencies: Function[]) => {
-  return ctor.prototype.constructor[offset + 100] = dependencies // [getDependencyKey(ctor)] 
+  return ctor.prototype[offset + 100] = dependencies // [getDependencyKey(ctor)] 
 }
 
 
-const getNonTrivialDependencies = (ctor: Function, offset: number): Map<Function, { schemas: StructKind[], offset: number }> | undefined => {
-  let existing = ctor.prototype.constructor[offset + 100] as Function[];
+const getNonTrivialDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
+  let existing = ctor.prototype[offset + 100] as Function[];
   if (existing) {
-    let ret: Map<Function, { schemas: StructKind[], offset: number }> = new Map()
+    let ret: Map<Function, { schema: StructKind, offset: number }> = new Map()
     for (const v of existing) {
-      let schemas = getSubMostSchemas(v);
-      const schema = schemas[schemas.length - 1];
+      let schema = getSubMostSchemas(v);
       if (schema.fields.length > 0 || schema.variant != undefined) { // non trivial
-        ret.set(v, { schemas, offset: getOffset(v) });
+        ret.set(v, { schema, offset: getOffset(v) });
       }
       else { // check recursively
         let req = getNonTrivialDependencies(v, offset);
-        req.forEach((rv, rk) => {
-          ret.set(rk, rv);
-        })
+        for (const [rv, rk] of req) {
+          ret.set(rv, rk);
+        }
       }
     }
     return ret;
@@ -609,26 +591,22 @@ export const getFlag = (ctor: Function): StructKind => {
 
 
 
-const setSchema = (ctor: Function, schemas: StructKind[], offset: number) => {
+const setSchema = (ctor: Function, schemas: StructKind, offset: number) => {
   //ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)] = schema
   ctor.prototype[987 + offset] = schemas;
 
 }
 
 
-export const getSchemas = (ctor: Function, offset: number): StructKind[] => {
-  //return ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)];
-  //console.log()
+export const getSchemas = (ctor: Function, offset: number): StructKind => {
   return ctor.prototype[987 + offset];
 }
 
-export const getSubMostSchemas = (ctor: Function): StructKind[] => {
-  //return ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)];
-  //console.log()
+export const getSubMostSchemas = (ctor: Function): StructKind => {
   let last = undefined;
   for (var i = 0; i < 1000; i++) {
     const curr = ctor.prototype[987 + i];
-    if (!curr && last) {
+    if (!curr && last && !getDependencies(ctor, i)?.length) {
       return last;
     }
     last = curr;
@@ -638,31 +616,36 @@ export const getSubMostSchemas = (ctor: Function): StructKind[] => {
 
 export const getSchema = (ctor: Function, offset: number = getOffset(ctor)): StructKind => {
   const schemas = getSchemas(ctor, offset);
-  return schemas[schemas.length - 1];
+  return schemas;
 }
 
 
-/*
-export const getSchemasBottomUp = (ctor: Function, offset: number): StructKind[] => {
-   let schemas: { clazz: Function, schema: StructKind }[] = [];
-  while (ctor?.prototype != undefined) {
-    let schema = getSchema(ctor);
-    if (schema)
-      schemas.push({
-        clazz: ctor,
-        schema
-      });
-    ctor = Object.getPrototypeOf(ctor);
+
+export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
+
+  let last = undefined;
+  let ret: StructKind[] = [];
+  for (var i = 0; i < 1000; i++) {
+    const curr = ctor.prototype[987 + i];
+    if (!curr) {
+      if (last && !getDependencies(ctor, i)?.length) {
+        return ret;
+      }
+    }
+    else {
+      ret.push(curr);
+      last = curr;
+    }
   }
-  if (schemas.length > 1)
-    return schemas.reverse();
-  return schemas; */
+  return ret;
+}
+
 /* let schema = getSchema(ctor);
 return [{ schema, clazz: ctor }] 
 return getSchemas(ctor, offset);
  
-}*/
-
+}
+ 
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
@@ -675,7 +658,7 @@ export const variant = (index: number | number[] | string) => {
     let schemas = getOrCreateStructMeta(ctor, offset);
 
     // Create a custom serialization, for enum by prepend instruction index
-    schemas[schemas.length - 1].variant = index;
+    schemas.variant = index;
 
     // Define Schema for this class, even though it might miss fields since this is a variant
     /* const clazzes = extendingClasses(ctor);
@@ -702,7 +685,7 @@ export function field(properties: SimpleField | CustomField<any>) {
     const offset = getOffset(target.constructor);
     setDependencyToProtoType(target.constructor, offset); // TODO
     const schemas = getOrCreateStructMeta(target.constructor, offset);
-    const schema = schemas[schemas.length - 1];
+    const schema = schemas;
     const key = name.toString();
 
     let field: Field = undefined;
@@ -743,66 +726,64 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @returns Schema map
  */
 export const validate = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined = false) => {
-  /* return validateIterator(clazzes, allowUndefined, new Set());
- };
- 
-  const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined: boolean, visited: Set<string>) => {
-   clazzes = Array.isArray(clazzes) ? clazzes : [clazzes];
-   let schemas = new Map<any, StructKind[]>();
-   clazzes.forEach((clazz, ix) => {
-     clazz = getSuperMostClass(clazz);
-     let dependencies = getDependenciesRecursively(clazz, 0); // TODO
-     dependencies.push(clazz);
-     dependencies.forEach((v, k) => {
-       const schema = getSchema(v);
-       if (!schema) {
-         return;
-       }
-       schemas.set(v, schema);
-       visited.add(v.name);
- 
- 
-     });
- 
-     let lastVariant: number | number[] | string = undefined;
-     let lastKey: Function = undefined;
-     getNonTrivialDependencies(clazz, 0)?.forEach((dependency, key) => { // TODO
-       if (!lastVariant)
-         lastVariant = getVariantIndex(dependency.schemas[dependency.schemas.length - 1]);
-       else if (!validateVariantAreCompatible(lastVariant, getVariantIndex(getSchema(dependency)))) {
-         throw new BorshError(`Class ${dependency.name} is extended by classes with variants of different types. Expecting only one of number, number[] or string`)
-       }
- 
-       if (lastKey != undefined && lastVariant == undefined) {
-         throw new BorshError(`Classes inherit ${clazz} and are introducing new field without introducing variants. This leads to unoptimized deserialization`)
-       }
-       lastKey = key;
-     })
- 
-     schemas.forEach((structSchemas, clazz) => {
-       structSchemas.forEach((structSchema) => {
-         structSchema.fields.forEach((field) => {
-           if (!field) {
-             throw new BorshError(
-               "Field is missing definition, most likely due to field indexing with missing indices"
-             );
-           }
-           if (allowUndefined) {
-             return;
-           }
-           if (field.type instanceof Function) {
-             if (!getSchemas(field.type) && getNonTrivialDependencies(field.type, 0).size == 0) { // TODO
-               throw new BorshError("Unknown field type: " + field.type.name);
-             }
- 
-             // Validate field
-             validateIterator(field.type, allowUndefined, visited);
-           }
-         });
-       })
-     })
-   });
-  */
+  return validateIterator(clazzes, allowUndefined, new Set());
+};
+
+const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined: boolean, visited: Set<string>) => {
+  clazzes = Array.isArray(clazzes) ? clazzes : [clazzes];
+  let schemas = new Map<any, StructKind>();
+  clazzes.forEach((clazz, ix) => {
+    clazz = getSuperMostClass(clazz);
+    let dependencies = getDependenciesRecursively(clazz, getOffset(clazz));
+    dependencies.push(clazz);
+    dependencies.forEach((v, k) => {
+      const schema = getSchema(v);
+      if (!schema) {
+        return;
+      }
+      schemas.set(v, schema);
+      visited.add(v.name);
+
+
+    });
+
+    let lastVariant: number | number[] | string = undefined;
+    let lastKey: Function = undefined;
+    getNonTrivialDependencies(clazz, getOffset(clazz))?.forEach((dependency, key) => {
+      if (!lastVariant)
+        lastVariant = getVariantIndex(dependency.schema);
+      else if (!validateVariantAreCompatible(lastVariant, getVariantIndex(dependency.schema))) {
+        throw new BorshError(`Class ${key.name} is extended by classes with variants of different types. Expecting only one of number, number[] or string`)
+      }
+
+      if (lastKey != undefined && lastVariant == undefined) {
+        throw new BorshError(`Classes inherit ${clazz} and are introducing new field without introducing variants. This leads to unoptimized deserialization`)
+      }
+      lastKey = key;
+    })
+
+    schemas.forEach((structSchema, clazz) => {
+      structSchema.fields.forEach((field) => {
+        if (!field) {
+          throw new BorshError(
+            "Field is missing definition, most likely due to field indexing with missing indices"
+          );
+        }
+        if (allowUndefined) {
+          return;
+        }
+        if (field.type instanceof Function) {
+          if (!getSchema(field.type) && !getNonTrivialDependencies(field.type, getOffset(clazz))?.size) {
+            throw new BorshError("Unknown field type: " + field.type.name);
+          }
+
+          // Validate field
+          validateIterator(field.type, allowUndefined, visited);
+        }
+      });
+    })
+  });
+
 
 }
 
@@ -825,8 +806,7 @@ const validateVariantAreCompatible = (a: number | number[] | string, b: number |
 }
 
 export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
-  /* const schemas = getSchemasBottomUp(constructor);
-  // assume ordered
+  const schemas = getSchemasBottomUp(constructor);
   const writer = new BinaryWriter();
   for (let i = 0; i < schemas.length; i++) {
     const clazz = schemas[i];
@@ -851,10 +831,8 @@ export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
     else {
       throw new BorshError("Can not resolve discriminator for variant with type: " + (typeof variant))
     }
- 
-  }
- 
-  return writer.toArray(); */
-  return new Uint8Array()
 
+  }
+
+  return writer.finalize();
 }
