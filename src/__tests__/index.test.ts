@@ -395,7 +395,6 @@ describe("number", () => {
     }
     const instance = new Struct(4294967295);
     const buf = serialize(instance);
-    // expect(new Uint8Array(buf)).toEqual(new Uint8Array([57, 48, 0, 0]));
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(4294967295);
   });
@@ -411,28 +410,28 @@ describe("number", () => {
       }
       const a = 12;
       const instance = new Struct(1000);
-      for (let i = 0; i < 100000000; i++) {
+      for (let i = 0; i < 100; i++) {
         const buf = serialize(instance);
-        const deserialized = deserialize(buf, Struct, { object: true });
+        const deserialized = deserialize(buf, Struct);
       }
-    }); */
+      const t = 123;
+    });
+  test("many arrs", () => {
+    class Struct {
+      @field({ type: Uint8Array })
+      public a: Uint8Array;
 
-  /*   test("many arrs", () => {
-      class Struct {
-        @field({ type: Uint8Array })
-        public a: Uint8Array;
-  
-        constructor(a: Uint8Array) {
-          this.a = a;
-        }
+      constructor(a: Uint8Array) {
+        this.a = a;
       }
-      const a = 12;
-      const instance = new Struct(crypto.randomBytes(399992));
-      for (let i = 0; i < 1000000; i++) {
-        const buf = serialize(instance);
-        const deserialized = deserialize(buf, Struct, { object: true });
-      }
-    }); */
+    }
+    const a = 12;
+    const instance = new Struct(crypto.randomBytes(399992));
+    for (let i = 0; i < 1000000; i++) {
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct, { object: true });
+    }
+  }); */
 
   test("u64 is le", () => {
     class Struct {
@@ -660,7 +659,9 @@ describe("enum", () => {
     expect(getSchema(Enum0)).toBeDefined();
     expect(getSchema(Enum1)).toBeDefined();
     expect(getSchema(TestStruct)).toBeDefined();
+
     const serialized = serialize(instance);
+
     expect(new Uint8Array(serialized)).toEqual(new Uint8Array([1, 4]));
 
     const deserialied = deserialize(new Uint8Array(serialized), TestStruct);

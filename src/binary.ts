@@ -115,27 +115,27 @@ export class BinaryWriter {
 
   }
 
-  public u(value: number | bigint, encoding: IntegerType) {
+  public static u(encoding: IntegerType): (value: number | bigint, writer: BinaryWriter) => void {
     if (encoding === 'u8') {
-      this.u8(value as number);
+      return (value, writer) => writer.u8(value as number);
     }
     else if (encoding === 'u16') {
-      this.u16(value as number);
+      return (value, writer) => writer.u16(value as number);
     }
     else if (encoding === 'u32') {
-      this.u32(value as number);
+      return (value, writer) => writer.u32(value as number);
     }
     else if (encoding === 'u64') {
-      this.u64(value);
+      return (value, writer) => writer.u64(value as number);
     }
     else if (encoding === 'u128') {
-      this.u128(value);
+      return (value, writer) => writer.u128(value as number);
     }
     else if (encoding === 'u256') {
-      this.u256(value);
+      return (value, writer) => writer.u256(value as number);
     }
     else if (encoding === 'u512') {
-      this.u512(value);
+      return (value, writer) => writer.u512(value as number);
     }
     else {
       throw new Error("Unsupported encoding: " + encoding)
@@ -221,6 +221,7 @@ export class BinaryReader {
     return value ? true : false;
   }
 
+
   @handlingRangeError
   u8(): number {
     const value = this._buf[this._offset];
@@ -270,27 +271,27 @@ export class BinaryReader {
   }
 
 
-  public u(encoding: IntegerType) {
+  public static u(encoding: IntegerType): ((reader: BinaryReader) => number) | ((reader: BinaryReader) => bigint) {
     if (encoding === 'u8') {
-      return this.u8();
+      return (reader) => reader.u8();
     }
     else if (encoding === 'u16') {
-      return this.u16();
+      return (reader) => reader.u16();
     }
     else if (encoding === 'u32') {
-      return this.u32();
+      return (reader) => reader.u32();
     }
     else if (encoding === 'u64') {
-      return this.u64();
+      return (reader) => reader.u64();
     }
     else if (encoding === 'u128') {
-      return this.u128();
+      return (reader) => reader.u128();
     }
     else if (encoding === 'u256') {
-      return this.u256();
+      return (reader) => reader.u256();
     }
     else if (encoding === 'u512') {
-      return this.u512();
+      return (reader) => reader.u512();
     }
     else {
       throw new Error("Unsupported encoding: " + encoding)
@@ -317,6 +318,7 @@ export class BinaryReader {
       throw new BorshError(`Error decoding UTF-8 string: ${e}`);
     }
   }
+
 
   @handlingRangeError
   uint8Array(): Uint8Array {

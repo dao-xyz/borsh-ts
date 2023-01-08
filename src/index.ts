@@ -20,66 +20,88 @@ import { BinaryWriter, BinaryReader } from "./binary.js";
 
 export function serializeField(
   fieldName: string,
-  value: any,
   fieldType: any, // A simple type of a CustomField
-  writer: BinaryWriter
-) {
+  options?: { unchecked: boolean }
+): (obj: any, writer: BinaryWriter) => any {
   try {
     // TODO: Handle missing values properly (make sure they never result in just skipped write)
 
     if (typeof fieldType.serialize == "function") {
-      fieldType.serialize(value, writer);
-    }
-    else if (value === null || value === undefined) {
-      if (fieldType instanceof OptionKind) {
-        writer.u8(0);
-      } else {
-        throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
+      return (obj, writer) => {
+        fieldType.serialize(obj, writer);
       }
+    }
+    else if (fieldType instanceof OptionKind) { // 
+      const fieldHandle = serializeField(fieldName, fieldType.elementType);
+
+      return (obj, writer) => {
+        if (obj != null) {
+          writer.u8(1);
+          fieldHandle(obj, writer)
+        }
+        else {
+          writer.u8(0)
+        }
+      }
+      /*  if (value === null || value === undefined) {
+         writer.u8(0);
+       } else {
+ 
+         throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
+       } */
     }
     else if (typeof fieldType === "string") {
       switch (fieldType as PrimitiveType) {
         case "bool":
-          writer.bool(value);
-          break;
+          return (obj, writer) => {
+            writer.bool(obj);
+          }
         case "string":
-          writer.string(value);
-          break;
+          return (obj, writer) => {
+            writer.string(obj);
+          }
         default:
-          writer.u(value, fieldType as IntegerType)
+          return BinaryWriter.u(fieldType as IntegerType)
       }
     }
-    else if (fieldType instanceof OptionKind) {
-      writer.u8(1);
-      serializeField(fieldName, value, fieldType.elementType, writer);
-    }
+
     else if (fieldType === Uint8Array) {
-      const arr = value as Uint8Array;
-      writer.uint8Array(arr)
+      return (obj, writer) => {
+        writer.uint8Array(obj as Uint8Array)
+      }
     }
     else if (
       fieldType instanceof VecKind ||
       fieldType instanceof FixedArrayKind
     ) {
-      let len = value.length;
-      if (fieldType instanceof FixedArrayKind) {
-        if (fieldType.length != len) {
-          throw new BorshError(
-            `Expecting array of length ${(fieldType as any)[0]}, but got ${value.length
-            }`
-          );
+
+      const fieldHandle = serializeField(null, fieldType.elementType);;
+      const sizeHandle = fieldType instanceof FixedArrayKind ? undefined : BinaryWriter.u(fieldType.sizeEncoding)
+      return (obj, writer) => {
+        let len = obj.length;
+        if (!sizeHandle) {
+          if ((fieldType as FixedArrayKind).length != len) {
+            throw new BorshError(
+              `Expecting array of length ${(fieldType as any)[0]}, but got ${obj.length
+              }`
+            );
+          }
+        } else {
+          sizeHandle(len, writer); // For dynamically sized array we write the size as uX according to specification
         }
-      } else {
-        writer.u(len, fieldType.sizeEncoding); // For dynamically sized array we write the size as uX according to specification
+        for (let i = 0; i < len; i++) {
+          fieldHandle(obj[i], writer)
+        }
       }
-      for (let i = 0; i < len; i++) {
-        serializeField(null, value[i], fieldType.elementType, writer);
-      }
+
     } else {
-      if (!checkClazzesCompatible(value.constructor, fieldType)) {
-        throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${value.constructor.name}`)
+      //const structHandle = serializeStruct(fieldType);
+      return (obj, writer) => {
+        if (options?.unchecked && !checkClazzesCompatible(obj.constructor, fieldType)) {
+          throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${obj.constructor.name}`)
+        }
+        serializeStruct(obj.constructor)(obj, writer)
       }
-      serializeStruct(value, writer);
     }
   } catch (error) {
     if (error instanceof BorshError) {
@@ -89,48 +111,55 @@ export function serializeField(
   }
 }
 
-export function serializeStruct(
-  obj: any,
-  writer: BinaryWriter
-) {
 
-  if (typeof obj.borshSerialize === "function") {
-    obj.borshSerialize(writer);
-    return;
-  }
+export function serializeStruct(
+  ctor: Function
+) {
+  let handle = (obj: any, writer: BinaryWriter) => { };
   var i = 0;
   let once = false;
-  const ctor = obj.constructor;
   while (true) {
-    let schema = getSchemas(ctor, i++);
+    let prev = handle;
+    let schema = getSchemas(ctor, i);
     if (schema) {
       once = true;
       const index = schema.variant;
       if (index != undefined) {
         if (typeof index === "number") {
-          writer.u8(index);
+          handle = (obj, writer) => { prev(obj, writer), writer.u8(index) }
         } else if (Array.isArray(index)) {
-          for (const i of index) {
-            writer.u8(i);
+          handle = (obj, writer) => {
+            prev(obj, writer)
+            for (const i of index) {
+              writer.u8(i);
+            }
           }
+
         }
         else { // is string
-          writer.string(index);
+          handle = (obj, writer) => {
+            prev(obj, writer);
+            writer.string(index);
+          }
         }
       }
-
       for (const field of schema.fields) {
-        serializeField(field.key, obj[field.key], field.type, writer);
+        const fieldHandle = serializeField(field.key, field.type);
+        let prev = handle;
+        handle = (obj, writer) => {
+          prev(obj, writer);
+          fieldHandle(obj[field.key], writer)
+        }
       }
-
     }
 
-    else if (once) {
-      return;
+    else if (once && !getDependencies(ctor, i)?.length) {
+      return handle;
     }
+    i++;
 
-    if (i > 100 && !once) {
-      throw new BorshError(`Class ${obj.constructor.name} is missing in schema`);
+    if (i > 100 && !once) { // TODO
+      throw new BorshError(`Class ${ctor.name} is missing in schema`);
     }
   }
 }
@@ -141,61 +170,73 @@ export function serialize(
   obj: any
 ): Uint8Array {
   const writer = new BinaryWriter();
-  serializeStruct(obj, writer);
+  let handle = obj.constructor._borsh_serialize
+  if (!handle) {
+    handle = serializeStruct(obj.constructor)
+    obj.constructor._borsh_serialize = handle;
+  }
+  handle(obj, writer)
   return writer.finalize();
 }
 
 function deserializeField(
   fieldName: string,
   fieldType: any,
-  reader: BinaryReader,
-  options: DeserializeStructOptions
-): any {
+): (reader: BinaryReader, options: DeserializeStructOptions) => any {
   try {
     if (typeof fieldType === "string") {
       switch (fieldType as PrimitiveType) {
         case "bool":
-          return reader.bool();
+          return (reader) => reader.bool();
         case "string":
-          return reader.string();
+          return (reader) => reader.string();
         default:
-          return reader.u(fieldType as IntegerType)
+          return BinaryReader.u(fieldType as IntegerType)
       }
     }
 
     if (fieldType === Uint8Array) {
-      return reader.uint8Array()
+      return (reader) => reader.uint8Array()
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
-      let len =
-        fieldType instanceof FixedArrayKind
-          ? fieldType.length
-          : reader.u32();
-      let arr = new Array(len);
-      for (let i = 0; i < len; i++) {
-        arr[i] = deserializeField(null, fieldType.elementType, reader, options);
+      let sizeHandle = fieldType instanceof VecKind ? BinaryReader.u(fieldType.sizeEncoding) : () => fieldType.length;
+      const fieldHandle = deserializeField(null, fieldType.elementType);
+      return (reader, options) => {
+        const len = sizeHandle(reader);
+        let arr = new Array(len);
+        for (let i = 0; i < len; i++) {
+          arr[i] = fieldHandle(reader, options);
+        }
+        return arr;
       }
-      return arr;
     }
+
     if (typeof fieldType["deserialize"] == "function") {
-      return fieldType.deserialize(reader);
+      return (reader) => fieldType.deserialize(reader);
     }
 
     if (fieldType instanceof OptionKind) {
-      const option = reader.u8();
-      if (option) {
-        return deserializeField(
-          fieldName,
-          fieldType.elementType,
-          reader,
-          options
-        );
+      const fieldHandle = deserializeField(
+        fieldName,
+        fieldType.elementType);
+      return (reader, options) => {
+        const option = reader.u8();
+        if (option) {
+          return fieldHandle(
+            reader,
+            options
+          );
+        }
+        return undefined;
       }
-      return undefined;
+    }
+    const structHandle = deserializeStruct(fieldType);
+    return (reader, options) => {
+      const result = structHandle(reader, options);
+      return result;
     }
 
-    return deserializeStruct(fieldType, reader, options);
   } catch (error) {
     if (error instanceof BorshError) {
       error.addToFieldPath(fieldName);
@@ -203,33 +244,48 @@ function deserializeField(
     throw error;
   }
 }
-function deserializeStruct(targetClazz: any, reader: BinaryReader, options?: DeserializeStructOptions) {
-  if (typeof targetClazz.borshDeserialize === "function") {
-    return targetClazz.borshDeserialize(reader);
-  }
+function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
 
-  const result: { [key: string]: any } = {};
-
-  // Polymorphic serialization, i.e. reversed prototype iteration using discriminators
-  let currClazz = targetClazz;
-  currClazz = handle(targetClazz, result, reader, 0, options)
-
-
-  /*  if (structSchemas.length === 0) {
-     throw new BorshError(`Unexpected schema ${targetClazz.constructor.name}`);
-   } */
-  if (!options?.unchecked && !checkClazzesCompatible(currClazz, targetClazz)) {
-    throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${targetClazz?.name || targetClazz} which are not compatible`);
-
-  }
-  if ((options as any)?.object) {
+  const handle = getCreateDeserializationHandle(targetClazz, 0);
+  const ret = (reader: BinaryReader, options?: DeserializeStructOptions) => {
+    const result = handle({}, reader, options)
+    if (!options?.unchecked && !(options as any)?.object && !checkClazzesCompatible(result.constructor, targetClazz)) {
+      throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${result.constructor?.name} which are not compatible`);
+    }
     return result;
   }
-  return Object.assign((options as any)?.construct ? new currClazz() : Object.create(currClazz.prototype), result);
+  return ret;
 
 }
 
-const handle = (currClazz: Function, result: any, reader: BinaryReader, offset: number, options: any): Function => {
+const getDeserializationHandle = (clazz: any, offset: number) => {
+  return clazz._borsh_deserialize?.[offset]
+}
+
+const getCreateDeserializationHandle = (clazz: any, offset: number): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => {
+  let handle = getDeserializationHandle(clazz, offset);
+  if (!handle) {
+    handle = setDeserializationHandle(clazz, offset, createDeserializeStructHandle(clazz, offset))
+  }
+  return handle;
+}
+
+const setDeserializationHandle = (clazz: any, offset: number, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
+  if (!clazz._borsh_deserialize) {
+    clazz._borsh_deserialize = {};
+  }
+  clazz._borsh_deserialize[offset] = handle;
+  return handle;
+}
+
+const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
+  let handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any | undefined = undefined;
+  let endHandle = (result: any, reader: BinaryReader, options: DeserializeStructOptions) => {
+    if ((options as any)?.object) {
+      return result;
+    }
+    return Object.assign((options as any)?.construct ? new currClazz() : Object.create(currClazz.prototype), result);
+  }
   let structSchema = getSchemas(currClazz, offset);
   if (structSchema) {
     if (offset === 0) {
@@ -238,104 +294,149 @@ const handle = (currClazz: Function, result: any, reader: BinaryReader, offset: 
         // It is an (stupid) enum, but we deserialize into its variant directly
         // This means we should omit the variant index
         if (typeof index === "number") {
-          reader.u8();
+          handle = (_, reader, __) => {
+            reader._offset += 1; // read 1 u
+          };
         } else if (Array.isArray(index)) {
-          reader._offset += index.length; // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
+          handle = (_, reader, __) => {
+            reader._offset += (index as Array<any>).length // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
+          };
         }
         else { // string
-          reader.string();
+          handle = (_, reader, __) => {
+            reader.string();
+          };
         }
       }
     }
+
     for (const field of structSchema.fields) {
-      result[field.key] = deserializeField(
+      const prev = handle;
+      const fieldHandle = deserializeField(
         field.key,
         field.type,
-        reader,
-        options
       );
+      if (prev) {
+        handle = (result, reader: BinaryReader, options?: DeserializeStructOptions) => {
+          prev(result, reader, options)
+          result[field.key] = fieldHandle(reader,
+            options)
+        }
+      }
+      else handle = (result, reader: BinaryReader, options?: DeserializeStructOptions) => {
+        result[field.key] = fieldHandle(reader,
+          options)
+      }
+
+
     }
   }
 
-
-
-  let next = undefined;
-  let nextOffset = undefined;
   // We know that we should serialize into the variant that accounts to the first byte of the read
-  let dependencies = getNonTrivialDependencies(currClazz, offset);
+  let dependencies = getAllDependencies(currClazz, offset);
   if (dependencies) {
-    let variantsIndex: number[] = undefined;
-    let variantString: string = undefined;
-
+    let variantToDepndency: [any, any, {
+      schema: StructKind;
+      offset: number;
+    }][] = [];
+    let variantType: 'string' | 'number' | number | 'undefined';
     for (const [actualClazz, dependency] of dependencies) {
       const variantIndex = getVariantIndex(dependency.schema);
-      if (variantIndex !== undefined) {
-        if (typeof variantIndex === "number") {
-
-          if (!variantsIndex) {
-            variantsIndex = [reader.u8()];
-          }
-          if (variantIndex == variantsIndex[0]) {
-            next = actualClazz;
-            nextOffset = dependency.offset
-            break;
-          }
+      let currentVariantType = typeof variantIndex === 'object' ? variantIndex.length : typeof variantIndex as ('string' | 'number');
+      if (!variantType) {
+        variantType = currentVariantType;
+      }
+      else if (currentVariantType !== variantType) {
+        throw new Error(`Variant extending ${currClazz.name} have different types, expecting either number, number[] (with same sizes) or string, but not a combination of them`)
+      }
+      variantToDepndency.push([variantIndex, actualClazz, dependency])
+    }
+    if (variantType === 'undefined') {
+      if (dependencies.size === 1) {
+        const dep = variantToDepndency[0];
+        return (result, reader, options) => {
+          handle && handle(result, reader, options)
+          return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
         }
-        else if (Array.isArray(variantIndex)) { // variant is array, check all values
+      }
+      else throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: but no variants are used which makes deserialization undetermenistic`)
 
-          if (!variantsIndex) {
-            variantsIndex = [];
-            while (variantsIndex.length < variantIndex.length) {
-              variantsIndex.push(reader.u8());
-            }
-          }
+    }
 
-          // Compare variants
-          if (
-            variantsIndex.length === variantIndex.length &&
-            (variantsIndex as number[]).every((value, index) => value === variantIndex[index])
-          ) {
-            next = actualClazz;
-            nextOffset = dependency.offset
-            break;
-          }
-        }
+    return (result, reader, options) => {
+      handle && handle(result, reader, options)
+      let next = undefined;
+      let nextOffset = undefined;
 
-        else { // is string
-          if (variantString == undefined) {
-            variantString = reader.string();
-          }
-          // Compare variants is just string compare
-          if (
-            variantString === variantIndex
-          ) {
-            next = actualClazz;
-            nextOffset = dependency.offset
-            break;
+      if (variantType === 'number') {
+        let agg = reader.u8();
+        for (const dep of variantToDepndency) {
+          if (agg === dep[0]) {
+            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
           }
         }
       }
+      else if (variantType === 'string') {
+        let variant = reader.string();
+        for (const dep of variantToDepndency) {
+          if (variant === dep[0]) {
+            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+          }
+        }
+      }
+      else // array 
+      {
+        let agg: number[] = [];
+        for (let i = 0; i < variantType; i++) {
+          agg.push(reader.u8())
+        }
+        for (const dep of variantToDepndency) {
+          let currentVariant = dep[0];
+          if (currentVariant.length === agg.length &&
+            (currentVariant as number[]).every((value, index) => value === agg[index])) {
+
+            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+          }
+        }
+      }
+
+      if (next == undefined && dependencies) {
+        // do a recursive call and copy result, 
+        // this is not computationally performant since we are going to traverse multiple path
+        // and possible do deserialziation on bad paths
+        if (dependencies.size == 1) // still deterministic
+        {
+          const n = dependencies.entries().next().value;
+          next = n[0];
+          nextOffset = n[1].offset;
+        }
+        else if (dependencies.size > 1) {
+          const classes = [...dependencies.entries()].map(([c]) => c.name).join(', ')
+          throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: ${classes} but no matches the variant read from the buffer.`)
+        }
+      }
+      if (next != null) {
+        getCreateDeserializationHandle(next, nextOffset)(result, reader, options)
+
+      }
+      else {
+        return endHandle
+      }
+
     }
+
   }
-  if (next == undefined && dependencies) {
-    // do a recursive call and copy result, 
-    // this is not computationally performant since we are going to traverse multiple path
-    // and possible do deserialziation on bad paths
-    if (dependencies.size == 1) // still deterministic
-    {
-      const n = dependencies.entries().next().value;
-      next = n[0];
-      nextOffset = n[1].offset;
+  else {
+    if (handle) {
+      return (result, reader, options) => {
+        handle && handle(result, reader, options)
+        return endHandle
+      }
     }
-    else if (dependencies.size > 1) {
-      const classes = [...dependencies.entries()].map(([c]) => c.name).join(', ')
-      throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: ${classes} but no matches the variant read from the buffer.`)
-    }
+    return endHandle
   }
-  if (next != null) {
-    return handle(next, result, reader, nextOffset, options);
-  }
-  return next || currClazz
+
+
 }
 
 
@@ -346,7 +447,7 @@ const intoUint8Array = (buf: Uint8Array) => {
       buf = new Uint8Array(buf, buf.byteOffset, buf.length);
     }
     else {
-      throw new BorshError("Expecing Uint8Array, instead got: " + buf["constructor"]?.["name"])
+      throw new BorshError("Expecting Uint8Array, instead got: " + buf["constructor"]?.["name"])
     }
   }
   return buf;
@@ -373,7 +474,7 @@ export function deserialize<T>(
 ): T {
   // buffer = intoUint8Array(buffer);
   const reader = new BinaryReader(buffer);
-  const result = deserializeStruct(classType, reader, options);
+  const result = deserializeStruct(classType)(reader, options);
   if (!options?.unchecked && reader._offset !== buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader._offset
@@ -396,7 +497,7 @@ export function deserializeUnchecked<T>(
 ): T {
   buffer = intoUint8Array(buffer);
   const reader = new BinaryReader(buffer);
-  return deserializeStruct(classType, reader, options);
+  return deserializeStruct(classType)(reader, options);
 }
 
 
@@ -441,13 +542,6 @@ const setDependencyToProtoType = (ctor: Function, offset: number) => {
 }
 
 const setDependency = (ctor: Function, offset: number, dependency: Function) => {
-  /*   const clazzes = extendingClasses(ctor);
-    for (const [i, clazz] of clazzes.entries()) {
-      if (!getDependencies(clazz, offset - i)?.length) {
-        setDependency(clazz, offset - i, ctor);
-      }
-    } */
-
 
   let dependencies = getDependencies(ctor, offset);
   if (!dependencies) {
@@ -538,7 +632,7 @@ const setDependencies = (ctor: Function, offset: number, dependencies: Function[
 }
 
 
-const getNonTrivialDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
+const getAllDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
   let existing = ctor.prototype[offset + 100] as Function[];
   if (existing) {
     let ret: Map<Function, { schema: StructKind, offset: number }> = new Map()
@@ -548,7 +642,7 @@ const getNonTrivialDependencies = (ctor: Function, offset: number): Map<Function
         ret.set(v, { schema, offset: getOffset(v) });
       }
       else { // check recursively
-        let req = getNonTrivialDependencies(v, offset);
+        let req = getAllDependencies(v, offset);
         for (const [rv, rk] of req) {
           ret.set(rv, rk);
         }
@@ -749,7 +843,7 @@ const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowU
 
     let lastVariant: number | number[] | string = undefined;
     let lastKey: Function = undefined;
-    getNonTrivialDependencies(clazz, getOffset(clazz))?.forEach((dependency, key) => {
+    getAllDependencies(clazz, getOffset(clazz))?.forEach((dependency, key) => {
       if (!lastVariant)
         lastVariant = getVariantIndex(dependency.schema);
       else if (!validateVariantAreCompatible(lastVariant, getVariantIndex(dependency.schema))) {
@@ -773,7 +867,7 @@ const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowU
           return;
         }
         if (field.type instanceof Function) {
-          if (!getSchema(field.type) && !getNonTrivialDependencies(field.type, getOffset(clazz))?.size) {
+          if (!getSchema(field.type) && !getAllDependencies(field.type, getOffset(clazz))?.size) {
             throw new BorshError("Unknown field type: " + field.type.name);
           }
 
@@ -836,3 +930,56 @@ export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
 
   return writer.finalize();
 }
+
+/* handle = (result, reader, options) => {
+     prev(result, reader, options)
+     for (const [actualClazz, dependency] of dependencies) {
+       const variantIndex = getVariantIndex(dependency.schema);
+       if (variantIndex !== undefined) {
+         if (typeof variantIndex === "number") {
+
+           if (!variantsIndex) {
+             variantsIndex = [reader.u8()];
+           }
+           if (variantIndex == variantsIndex[0]) {
+             next = actualClazz;
+             nextOffset = dependency.offset
+             break;
+           }
+         }
+         else if (Array.isArray(variantIndex)) { // variant is array, check all values
+
+           if (!variantsIndex) {
+             variantsIndex = [];
+             while (variantsIndex.length < variantIndex.length) {
+               variantsIndex.push(reader.u8());
+             }
+           }
+
+           // Compare variants
+           if (
+             variantsIndex.length === variantIndex.length &&
+             (variantsIndex as number[]).every((value, index) => value === variantIndex[index])
+           ) {
+             next = actualClazz;
+             nextOffset = dependency.offset
+             break;
+           }
+         }
+
+         else { // is string
+           if (variantString == undefined) {
+             variantString = reader.string();
+           }
+           // Compare variants is just string compare
+           if (
+             variantString === variantIndex
+           ) {
+             next = actualClazz;
+             nextOffset = dependency.offset
+             break;
+           }
+         }
+       }
+     } 
+ }*/
