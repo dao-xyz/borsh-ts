@@ -205,19 +205,19 @@ Schema generation is supported if deserialization is deterministic. In other wor
 Example:
 ```typescript 
 class A {
-    @field({type: 'number'})
+    @field({type: 'u8'})
     a: number 
 }
 
 @variant(0)
 class B1 extends A{
-    @field({type: 'number'})
+    @field({type: 'u16'})
     b1: number 
 }
 
 @variant(1)
 class B2 extends A{
-    @field({type: 'number'})
+    @field({type: 'u32'})
     b2: number 
 }
 
