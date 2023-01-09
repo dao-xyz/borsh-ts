@@ -5,9 +5,9 @@ import protobuf from "protobufjs";
 // Run with "node --loader ts-node/esm ./benchmark/bench2.ts"
 
 /*** 
- * json x 1,922,772 ops/sec ±0.23% (97 runs sampled)
- * borsh x 3,412,867 ops/sec ±0.58% (94 runs sampled)
- * protobujs x 3,108,237 ops/sec ±2.11% (97 runs sampled)
+ * json x 1,997,857 ops/sec ±0.33% (243 runs sampled)
+ * borsh x 3,570,224 ops/sec ±0.58% (242 runs sampled)
+ * protobujs x 3,357,032 ops/sec ±0.54% (241 runs sampled)
  */
 function getRandomInt(max: number) {
     return Math.floor(Math.random() * max);
@@ -43,7 +43,7 @@ const borshArgs = { unchecked: true, object: true }
 const suite = new B.Suite()
 suite.add("json", () => {
     JSON.parse(JSON.stringify(getTestObject()))
-}).add("borsh", () => {
+}, { minSamples: 150 }).add("borsh", () => {
     deserialize(serialize(getTestObject()), Test, borshArgs)
 }, { minSamples: 150 }).add('protobujs', () => {
     ProtoMessage.toObject(ProtoMessage.decode(ProtoMessage.encode(getTestObject()).finish()))
