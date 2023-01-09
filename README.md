@@ -9,7 +9,9 @@
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
 
-### How `borsh-ts` differs from `borsh-js`  
+This implementation is performant, in fact, It slightly outperforms protobuf.js [benchmark 2](./benchmark/bench3.ts) (10% faster), [benchmark 3](./benchmark/bench3.ts) (5% faster)
+
+### How `borsh-ts` differs from `borsh-js`
 - Schema is defined using decorators rather than building a map. The schema is stored alongside the class behind the scenes so there is no longer need to pass it during serialization and deserialization. 
 - Big number are interpreted with `bigint` rather than `BN` (bn.js) 
 - No dependency on `Buffer` 
@@ -150,20 +152,53 @@ class TestStruct {
 **Arrays**
 
 ***Dynamically sized***
+
+```typescript
+class TestStruct {
+  @field({ type: Uint8Array })
+  public vec: Uint8Array; 
+}
+```
+
 ```typescript
 class TestStruct {
   @field({ type: vec('u8') })
+  public vec: Uint8Array; // Uint8Array will be created if type is u8
+}
+```
+
+
+```typescript
+class TestStruct {
+  @field({ type: vec('32') })
   public vec: number[];
 }
 ```
+
+*Custom size encoding, ***not*** compatible with Borsh specification*
+```typescript
+class TestStruct {
+  @field({ type: vec('u64', 'u8') }) // Size will be encoded with u8 instead of u32
+  public vec: bigint[]; 
+}
+```
+
 
 ***Fixed length***
 ```typescript
 class TestStruct {
   @field({ type: fixedArray('u8', 3) }) // Fixed array of length 3
-  public fixedLengthArray: number[];
+  public fixedLengthArray: Uint8Array;  // Uint8Array will be created if type is u8
 }
 ```
+
+```typescript
+class TestStruct {
+  @field({ type: fixedArray('u64', 3) }) // Fixed array of length 3
+  public fixedLengthArray: bigint[];
+}
+```
+
 
 **Option**
 ```typescript
@@ -205,19 +240,19 @@ Schema generation is supported if deserialization is deterministic. In other wor
 Example:
 ```typescript 
 class A {
-    @field({type: 'number'})
+    @field({type: 'u8'})
     a: number 
 }
 
 @variant(0)
 class B1 extends A{
-    @field({type: 'number'})
+    @field({type: 'u16'})
     b1: number 
 }
 
 @variant(1)
 class B2 extends A{
-    @field({type: 'number'})
+    @field({type: 'u32'})
     b2: number 
 }
 
@@ -301,13 +336,11 @@ yarn pretty
 ```
 
 ## Benchmarks 
-[See benchmark script here](./benchmark/index.ts)
+[See benchmark script here](./benchmark/benchmar3.ts)
 
-borsh x 890,313 ops/sec ±0.20% (96 runs sampled)
-
-json x 2,038,966 ops/sec ±0.22% (99 runs sampled)
-
-protobujs x 3,145,022 ops/sec ±0.93% (97 runs sampled
+* json x 1,997,857 ops/sec ±0.33% (243 runs sampled)
+* borsh x 3,570,224 ops/sec ±0.58% (242 runs sampled)
+* protobujs x 3,357,032 ops/sec ±0.54% (241 runs sampled)
 
 There is still some work to be done on allocating right amount of memory on serialization and improve overall performance on deserialization. JSON is fast in Javascript environments, since the JSON lib is heavily optimized in Javascript runtimes.
 

@@ -1,128 +1,204 @@
 import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
+import { IntegerType, PrimitiveType } from './types.js';
 
-const INITIAL_LENGTH = 8;
+const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for v8 fn optimization 
+  if ((globalThis as any).Buffer) {
+    return (globalThis as any).Buffer.allocUnsafe(len)
+  }
+  return new Uint8Array(len)
+}
+
 
 export class BinaryWriter {
   _buf: Uint8Array;
-  _length: number;
+  totalSize: number;
+  _writes: () => any;
 
   public constructor() {
-    this._buf = new Uint8Array(INITIAL_LENGTH);
-    this._length = 0;
-  }
-
-  maybeResize(toFit: number) {
-    if (this._buf.byteLength < toFit + this._length) {
-      const newArr = new Uint8Array(this._buf.byteLength + toFit + INITIAL_LENGTH); // add some extra padding (INITIAL_LENGTH)
-      newArr.set(this._buf);
-      this._buf = newArr;
-    }
-
+    this.totalSize = 0;
+    this._writes = () => { };
   }
 
   public bool(value: boolean) {
-    this.maybeResize(1);
-    this._buf[this._length] = value ? 1 : 0;
-    this._length += 1;
+    return BinaryWriter.bool(value, this)
   }
 
+  public static bool(value: boolean, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      writer._buf[offset] = value ? 1 : 0;
+    }
+    writer.totalSize += 1;
+
+  }
   public u8(value: number) {
-    this.maybeResize(1);
-    checkInt(value, 0, 255, 1);
-    this._buf[this._length] = value;
-    this._length += 1;
+    return BinaryWriter.u8(value, this)
+  }
+
+  public static u8(value: number, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); (writer._buf[offset] = value) };
+    writer.totalSize += 1;
   }
 
   public u16(value: number) {
-    this.maybeResize(2);
-    writeUInt16LE(value, this._buf, this._length)
-    this._length += 2;
+    return BinaryWriter.u16(value, this)
+  }
+
+  public static u16(value: number, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeUInt16LE(value, writer._buf, offset) };
+    writer.totalSize += 2;
   }
 
   public u32(value: number) {
-    this.maybeResize(4);
-    writeUInt32LE(value, this._buf, this._length)
-    this._length += 4;
+    return BinaryWriter.u32(value, this)
+  }
+
+  public static u32(value: number, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeUInt32LE(value, writer._buf, offset) }
+    writer.totalSize += 4;
 
   }
 
   public u64(value: number | bigint) {
-    this.maybeResize(8);
-    writeBufferLEBigInt(value, 8, this._buf, this._length)
-    this._length += 8;
+    return BinaryWriter.u64(value, this)
+  }
+
+  public static u64(value: number | bigint, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeBufferLEBigInt(value, 8, writer._buf, offset) }
+    writer.totalSize += 8;
   }
 
   public u128(value: number | bigint) {
-    this.maybeResize(16);
-    writeBufferLEBigInt(value, 16, this._buf, this._length)
-    this._length += 16;
+    return BinaryWriter.u128(value, this)
   }
 
+  public static u128(value: number | bigint, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeBufferLEBigInt(value, 16, writer._buf, offset) }
+    writer.totalSize += 16;
+
+  }
+
+
   public u256(value: number | bigint) {
-    this.maybeResize(32);
-    writeBufferLEBigInt(value, 32, this._buf, this._length)
-    this._length += 32;
+    return BinaryWriter.u256(value, this)
+  }
+
+  public static u256(value: number | bigint, writer: BinaryWriter) {
+
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeBufferLEBigInt(value, 32, writer._buf, offset) }
+    writer.totalSize += 32;
+
   }
 
   public u512(value: number | bigint) {
-    this.maybeResize(64);
-    writeBufferLEBigInt(value, 64, this._buf, this._length)
-    this._length += 64;
+    return BinaryWriter.u512(value, this)
+  }
+
+  public static u512(value: number | bigint, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeBufferLEBigInt(value, 64, writer._buf, offset) }
+    writer.totalSize += 64;
+
   }
 
   public string(str: string) {
+    return BinaryWriter.string(str, this)
+  }
+
+  public static string(str: string, writer: BinaryWriter) {
     const len = utf8.length(str);
-    this.u32(len);
-    this.maybeResize(len)
-    this._length += utf8.write(str, this._buf, this._length);
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      writeUInt32LE(len, writer._buf, offset)
+      utf8.write(str, writer._buf, offset + 4);
+    }
+    writer.totalSize += 4 + len;
 
   }
 
   public uint8Array(array: Uint8Array) {
-    this.maybeResize(array.length + 4);
-    this.u32(array.length)
-    this.buffer(array);
+    return BinaryWriter.uint8Array(array, this)
+
   }
-
-  private buffer(buffer: Uint8Array) {
-    this.maybeResize(buffer.byteLength);
-    this._buf.set(buffer, this._length);
-    this._length += buffer.byteLength;
-  }
-
-  public toArray(): Uint8Array {
-    if (this._buf.length !== this._length)
-      return this._buf.slice(0, this._length);
-    return this._buf
-  }
-}
-
-
-
-function handlingRangeError(
-  target: any,
-  propertyKey: string,
-  propertyDescriptor: PropertyDescriptor
-) {
-  const originalMethod = propertyDescriptor.value;
-  propertyDescriptor.value = function (...args: any[]) {
-    try {
-      return originalMethod.apply(this, args);
-    } catch (e) {
-      if (e instanceof RangeError) {
-        const code = (e as any).code;
-        if (
-          ["ERR_BUFFER_OUT_OF_BOUNDS", "ERR_OUT_OF_RANGE"].indexOf(code) >= 0
-        ) {
-          throw new BorshError("Reached the end of buffer when deserializing");
-        }
-      }
-      throw e;
+  public static uint8Array(array: Uint8Array, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      writeUInt32LE(array.length, writer._buf, offset)
+      writer._buf.set(array, offset + 4);
     }
-  };
+    writer.totalSize += array.length + 4;
+
+  }
+
+
+  public static write(encoding: PrimitiveType): (value: number | bigint | string | boolean | string, writer: BinaryWriter) => void {
+    if (encoding === 'u8') {
+      return BinaryWriter.u8
+    }
+    else if (encoding === 'u16') {
+      return BinaryWriter.u16
+    }
+    else if (encoding === 'u32') {
+      return BinaryWriter.u32
+    }
+    else if (encoding === 'u64') {
+      return BinaryWriter.u64
+    }
+    else if (encoding === 'u128') {
+      return BinaryWriter.u128
+    }
+    else if (encoding === 'u256') {
+      return BinaryWriter.u256
+    }
+    else if (encoding === 'u512') {
+      return BinaryWriter.u512
+    }
+    else if (encoding === 'bool') {
+      return BinaryWriter.bool
+
+    }
+    else if (encoding === 'string') {
+      return BinaryWriter.string
+    }
+    else {
+      throw new Error("Unsupported encoding: " + encoding)
+    }
+  }
+
+
+
+
+
+
+  public finalize(): Uint8Array {
+    this._buf = allocUnsafe(this.totalSize);
+    this._writes()
+    return this._buf;
+
+  }
 }
+
 
 
 export class BinaryReader {
@@ -134,95 +210,156 @@ export class BinaryReader {
     this._offset = 0;
   }
 
-  @handlingRangeError
   bool(): boolean {
-    const value = this._buf[this._offset];
-    this._offset += 1;
+    return BinaryReader.bool(this)
+  }
+
+  static bool(reader: BinaryReader): boolean {
+    const value = reader._buf[reader._offset];
+    reader._offset += 1;
     return value ? true : false;
   }
 
-  @handlingRangeError
   u8(): number {
-    const value = this._buf[this._offset];
-    this._offset += 1;
+    return BinaryReader.u8(this)
+  }
+
+  static u8(reader: BinaryReader): number {
+    const value = reader._buf[reader._offset];
+    reader._offset += 1;
     return value;
   }
 
-  @handlingRangeError
   u16(): number {
-    const value = readUInt16LE(this._buf, this._offset);
-    this._offset += 2;
+    return BinaryReader.u16(this)
+  }
+
+  static u16(reader: BinaryReader): number {
+    const value = readUInt16LE(reader._buf, reader._offset);
+    reader._offset += 2;
     return value;
   }
 
-  @handlingRangeError
+
   u32(): number {
-    const value = readUInt32LE(this._buf, this._offset);
-    this._offset += 4;
+    return BinaryReader.u32(this)
+  }
+
+  static u32(reader: BinaryReader): number {
+    const value = readUInt32LE(reader._buf, reader._offset);
+    reader._offset += 4;
     return value;
   }
 
-  @handlingRangeError
   u64(): bigint {
     const value = readBigUInt64LE(this._buf, this._offset);
     this._offset += 8;
     return value
   }
 
-  @handlingRangeError
+  static u64(reader: BinaryReader): bigint {
+    const value = readBigUInt64LE(reader._buf, reader._offset);
+    reader._offset += 8;
+    return value
+  }
+
   u128(): bigint {
     const value = readUIntLE(this._buf, this._offset, 16);
     this._offset += 16;
     return value
   }
-
-  @handlingRangeError
+  static u128(reader: BinaryReader): bigint {
+    const value = readUIntLE(reader._buf, reader._offset, 16);
+    reader._offset += 16;
+    return value
+  }
   u256(): bigint {
     const value = readUIntLE(this._buf, this._offset, 32);
     this._offset += 32;
     return value
   }
-
-  @handlingRangeError
+  static u256(reader: BinaryReader): bigint {
+    const value = readUIntLE(reader._buf, reader._offset, 32);
+    reader._offset += 32;
+    return value
+  }
   u512(): bigint {
-    const buf = this.buffer(64);
+    return BinaryReader.u512(this)
+  }
+  static u512(reader: BinaryReader): bigint {
+    const buf = reader.buffer(64);
     return toBigIntLE(buf)
   }
 
-  private buffer(len: number): Uint8Array {
-    if (this._offset + len > this._buf.byteLength) {
-      throw new BorshError(`Expected buffer length ${len} isn't within bounds`);
-    }
-    const result = this._buf.slice(this._offset, this._offset + len);
-    this._offset += len;
-    return new Uint8Array(result);
+  string(): string {
+    return BinaryReader.string(this);
   }
 
-  @handlingRangeError
-  string(): string {
-    const len = this.u32();
+  static string(reader: BinaryReader): string {
+    const len = reader.u32();
     try {
-      // NOTE: Using TextDecoder to fail on invalid UTF-8
-      const string = utf8.read(this._buf, this._offset, this._offset + len);
-      this._offset += len
+      const end = reader._offset + len;
+      const string = utf8.read(reader._buf, reader._offset, end);
+      reader._offset = end;
       return string;
     } catch (e) {
       throw new BorshError(`Error decoding UTF-8 string: ${e}`);
     }
   }
-
-  @handlingRangeError
-  uint8Array(): Uint8Array {
-    const len = this.u32();
-    return new Uint8Array(this.buffer(len));
+  public static read(encoding: PrimitiveType): ((reader: BinaryReader) => number) | ((reader: BinaryReader) => bigint) | ((reader: BinaryReader) => boolean) | ((reader: BinaryReader) => string) {
+    if (encoding === 'u8') {
+      return BinaryReader.u8
+    }
+    else if (encoding === 'u16') {
+      return BinaryReader.u16
+    }
+    else if (encoding === 'u32') {
+      return BinaryReader.u32
+    }
+    else if (encoding === 'u64') {
+      return BinaryReader.u64
+    }
+    else if (encoding === 'u128') {
+      return BinaryReader.u128
+    }
+    else if (encoding === 'u256') {
+      return BinaryReader.u256
+    }
+    else if (encoding === 'u512') {
+      return BinaryReader.u512
+    }
+    else if (encoding === 'string') {
+      return BinaryReader.string
+    }
+    else if (encoding === 'bool') {
+      return BinaryReader.bool
+    }
+    else {
+      throw new Error("Unsupported encoding: " + encoding)
+    }
   }
 
-  @handlingRangeError
+  private buffer(len: number): Uint8Array {
+    const end = this._offset + len;
+    const result = this._buf.subarray(this._offset, end);
+    this._offset = end;
+    return result;
+  }
+
+
+  uint8Array(): Uint8Array {
+    return BinaryReader.uint8Array(this)
+  }
+
+  static uint8Array(reader: BinaryReader, size = reader.u32()): Uint8Array {
+    return reader.buffer(size);
+  }
+
   readArray(fn: any): any[] {
     const len = this.u32();
-    const result = Array<any>();
+    const result = new Array<any>(len);
     for (let i = 0; i < len; ++i) {
-      result.push(fn());
+      result[i] = fn();
     }
     return result;
   }

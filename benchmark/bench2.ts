@@ -1,9 +1,14 @@
-import { field, serialize, deserialize } from '../src/index.js'
+import { field, serialize, deserialize, BinaryReader, BinaryWriter } from '../src/index.js'
 import B from 'benchmark'
 import protobuf from "protobufjs";
 
-// Run with "node --loader ts-node/esm ./benchmark/index.ts"
+// Run with "node --loader ts-node/esm ./benchmark/bench2.ts"
 
+/*** 
+ * json x 1,997,857 ops/sec ±0.33% (243 runs sampled)
+ * borsh x 3,570,224 ops/sec ±0.58% (242 runs sampled)
+ * protobujs x 3,357,032 ops/sec ±0.54% (241 runs sampled)
+ */
 function getRandomInt(max: number) {
     return Math.floor(Math.random() * max);
 }
@@ -24,22 +29,25 @@ class Test {
     }
 }
 
-const protoRoot = protobuf.loadSync('benchmark/message.proto')
+const protoRoot = protobuf.loadSync('benchmark/bench2.proto')
 const ProtoMessage = protoRoot.lookupType("Message");
-const suite = new B.Suite()
 const createObject = () => {
     return new Test("name-🍍" + getRandomInt(254), getRandomInt(254)/* , (new Array(10)).fill("abc-" + getRandomInt(1000)) */)
 }
 const numTestObjects = 10000
 const testObjects = ((new Array(numTestObjects)).fill(createObject()));
 const getTestObject = () => testObjects[getRandomInt(numTestObjects)];
-suite.add("borsh", () => {
-    deserialize(serialize(getTestObject()), Test, { unchecked: true, object: true })
-}).add("json", () => {
+const borshArgs = { unchecked: true, object: true }
+
+
+const suite = new B.Suite()
+suite.add("json", () => {
     JSON.parse(JSON.stringify(getTestObject()))
-}).add('protobujs', () => {
+}, { minSamples: 150 }).add("borsh", () => {
+    deserialize(serialize(getTestObject()), Test, borshArgs)
+}, { minSamples: 150 }).add('protobujs', () => {
     ProtoMessage.toObject(ProtoMessage.decode(ProtoMessage.encode(getTestObject()).finish()))
-}).on('cycle', (event: any) => {
+}, { minSamples: 150 }).on('cycle', (event: any) => {
     console.log(String(event.target));
 }).on('complete', function () {
     console.log('Fastest is ' + this.filter('fastest').map('name'));
