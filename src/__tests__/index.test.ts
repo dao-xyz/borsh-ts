@@ -211,9 +211,9 @@ describe("bool", () => {
 });
 
 describe("arrays", () => {
-  test("vec simple", () => {
+  test("fixed array simple", () => {
     class TestStruct {
-      @field({ type: vec("u8") })
+      @field({ type: fixedArray("u32", 3) })
       public a: number[];
 
       constructor(properties?: { a: number[] }) {
@@ -225,12 +225,14 @@ describe("arrays", () => {
 
     validate(TestStruct);
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    expect(new Uint8Array(buf)).toEqual(
+      new Uint8Array([1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0])
+    );
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual([1, 2, 3]);
   });
 
-  test("fixed array simple", () => {
+  test("fixed array u8", () => {
     class TestStruct {
       @field({ type: fixedArray("u8", 3) })
       public a: number[];
@@ -246,7 +248,8 @@ describe("arrays", () => {
     const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
     expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
-    expect(deserialized.a).toEqual([1, 2, 3]);
+    expect(deserialized.a instanceof Uint8Array).toBeTruthy();
+    expect(new Uint8Array(deserialized.a)).toEqual(new Uint8Array([1, 2, 3]));
   });
 
   test("fixed array wrong length serialize", () => {
@@ -299,7 +302,24 @@ describe("arrays", () => {
     const deserialized = deserialize(buf, TestStruct);
     expect(new Uint8Array(deserialized.a)).toEqual(new Uint8Array([1, 2, 3]));
   });
+  test("vec simple", () => {
+    class TestStruct {
+      @field({ type: vec("u8") })
+      public a: number[];
 
+      constructor(properties?: { a: number[] }) {
+        if (properties) {
+          this.a = properties.a;
+        }
+      }
+    }
+
+    validate(TestStruct);
+    const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
+    expect(new Uint8Array(deserialized.a)).toEqual(new Uint8Array([1, 2, 3]));
+  });
   test("vec struct", () => {
     class Element {
       @field({ type: "u8" })
@@ -333,6 +353,25 @@ describe("arrays", () => {
     expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
     const deserialized = deserialize(buf, TestStruct);
     expect(deserialized.a).toEqual(arr);
+  });
+
+  test("vec override size type", () => {
+    class TestStruct {
+      @field({ type: vec("u16", "u8") })
+      public a: number[];
+
+      constructor(properties?: { a: number[] }) {
+        if (properties) {
+          this.a = properties.a;
+        }
+      }
+    }
+
+    validate(TestStruct);
+    const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 1, 0, 2, 0, 3, 0]));
+    const deserialized = deserialize(buf, TestStruct);
+    expect(deserialized.a).toEqual([1, 2, 3]);
   });
 });
 
@@ -398,40 +437,6 @@ describe("number", () => {
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(4294967295);
   });
-
-  /*   test("many u32", () => {
-      class Struct {
-        @field({ type: "u32" })
-        public a: number;
-  
-        constructor(a: number) {
-          this.a = a;
-        }
-      }
-      const a = 12;
-      const instance = new Struct(1000);
-      for (let i = 0; i < 100; i++) {
-        const buf = serialize(instance);
-        const deserialized = deserialize(buf, Struct);
-      }
-      const t = 123;
-    });
-  test("many arrs", () => {
-    class Struct {
-      @field({ type: Uint8Array })
-      public a: Uint8Array;
-
-      constructor(a: Uint8Array) {
-        this.a = a;
-      }
-    }
-    const a = 12;
-    const instance = new Struct(crypto.randomBytes(399992));
-    for (let i = 0; i < 1000000; i++) {
-      const buf = serialize(instance);
-      const deserialized = deserialize(buf, Struct, { object: true });
-    }
-  }); */
 
   test("u64 is le", () => {
     class Struct {
@@ -1471,28 +1476,6 @@ describe("Validation", () => {
     ).toEqual(1);
   });
 
-  test("variant conflict, index", () => {
-    const classDef = () => {
-      class TestStruct {
-        constructor() {}
-      }
-      @variant(0) // Same as B
-      class A extends TestStruct {
-        constructor() {
-          super();
-        }
-      }
-
-      @variant(0) // Same as A
-      class B extends TestStruct {
-        constructor() {
-          super();
-        }
-      }
-    };
-    expect(() => classDef()).toThrowError(BorshError);
-  });
-
   test("undefined struct error", () => {
     class Value {
       constructor() {}
@@ -1505,7 +1488,7 @@ describe("Validation", () => {
 
     expect(() => serialize(new Container())).toThrowError(BorshError);
     expect(() => serialize(new Container())).toThrow(
-      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "Value". Most likely you have forgotten to assign this value before serializing. Error originated at field path: v'
+      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "Value". Most likely you have forgotten to assign this value before serializing'
     );
   });
   test("undefined number error", () => {
@@ -1516,68 +1499,8 @@ describe("Validation", () => {
 
     expect(() => serialize(new Container())).toThrowError(BorshError);
     expect(() => serialize(new Container())).toThrow(
-      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "u64". Most likely you have forgotten to assign this value before serializing. Error originated at field path: v'
+      'Trying to serialize a null value to field "v" which is not allowed since the field is not decorated with "option(...)" but "u64". Most likely you have forgotten to assign this value before serializing'
     );
-  });
-
-  test("variant type conflict", () => {
-    class Super {
-      constructor() {}
-    }
-    @variant([0, 0]) // Same as B
-    class A extends Super {
-      constructor() {
-        super();
-      }
-    }
-
-    @variant(0) // Same as A
-    class B extends Super {
-      constructor() {
-        super();
-      }
-    }
-    expect(() => validate(Super)).toThrowError(BorshError);
-  });
-
-  test("variant type conflict inheritance", () => {
-    class SuperSuper {}
-
-    class Super extends SuperSuper {}
-
-    @variant([0, 0]) // Same as B
-    class A extends Super {
-      constructor() {
-        super();
-      }
-    }
-
-    @variant(0) // Same as A
-    class B extends SuperSuper {
-      constructor() {
-        super();
-      }
-    }
-    expect(() => validate(SuperSuper)).toThrowError(BorshError);
-  });
-
-  test("variant type conflict array length", () => {
-    class Super {}
-
-    @variant([0, 0]) // Same as B
-    class A extends Super {
-      constructor() {
-        super();
-      }
-    }
-
-    @variant([0]) // Same as A
-    class B extends Super {
-      constructor() {
-        super();
-      }
-    }
-    expect(() => validate(Super)).toThrowError(BorshError);
   });
 
   test("error for non optimized code", () => {
@@ -1705,6 +1628,81 @@ describe("Validation", () => {
           super();
         }
       }
+      return [A, B, TestStruct];
+    };
+    expect(() => classDef()).toThrowError(BorshError);
+  });
+
+  test("variant conflict, indices length", () => {
+    const classDef = () => {
+      class TestStruct {
+        constructor() {}
+      }
+      @variant([0, 1]) // Same as B
+      class A extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+
+      @variant([0, 1, 2]) // Same as A
+      class B extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+      return [A, B, TestStruct];
+    };
+    expect(() => classDef()).toThrowError(BorshError);
+  });
+
+  test("variant conflict, indices deep inheritance", () => {
+    const classDef = () => {
+      class TestStructSuper {
+        constructor() {}
+      }
+      class TestStruct extends TestStructSuper {
+        constructor() {
+          super();
+        }
+      }
+      @variant([0, 1]) // Same as B
+      class A extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+
+      @variant([0, 1, 2]) // Same as A
+      class B extends TestStructSuper {
+        constructor() {
+          super();
+        }
+      }
+      return [A, B, TestStruct];
+    };
+    expect(() => classDef()).toThrowError(BorshError);
+  });
+
+  test("variant conflict, index", () => {
+    const classDef = () => {
+      class TestStruct {
+        constructor() {}
+      }
+      @variant(0) // Same as B
+      class A extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+
+      @variant(0) // Same as A
+      class B extends TestStruct {
+        constructor() {
+          super();
+        }
+      }
+      return [A, B, TestStruct];
     };
     expect(() => classDef()).toThrowError(BorshError);
   });

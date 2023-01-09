@@ -8,9 +8,9 @@ import {
   CustomField,
   Constructor,
   AbstractType,
-  PrimitiveType,
   IntegerType,
   getOffset,
+  extendingClasses,
 } from "./types.js";
 export * from "./binary.js";
 export * from "./types.js";
@@ -18,90 +18,148 @@ export * from './error.js';
 import { BorshError } from "./error.js";
 import { BinaryWriter, BinaryReader } from "./binary.js";
 
-export function serializeField(
+/**
+ * Code below is quite optimized for performance hence there will be some "wierd" looking .js 
+ * Overall, they way it works, is that each Schema is translated into one big callback function that can execute very efficiently multiple time
+ * This function or handle, is stored on the prototypes so we can easily access it when we want to serialize/deserialize
+ */
+
+const MAX_PROTOTYPE_SEARCH = 500;
+const PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET = 500;
+const PROTOTYPE_DEPENDENCY_HANDLER_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + MAX_PROTOTYPE_SEARCH;
+const PROTOTYPE_SCHEMA_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + MAX_PROTOTYPE_SEARCH * 2;
+
+/**
+ * Serialize an object with @field(...) or @variant(...) decorators
+ * @param obj 
+ * @returns bytes
+ */
+export function serialize(
+  obj: any
+): Uint8Array {
+  const writer = new BinaryWriter();
+  let handle = obj.constructor._borsh_serialize
+  if (!handle) {
+    handle = serializeStruct(obj.constructor)
+    obj.constructor._borsh_serialize = handle;
+  }
+  handle(obj, writer)
+  return writer.finalize();
+}
+
+
+/**
+ * /// Deserializes object from bytes using schema.
+ * @param buffer data
+ * @param classType target Class
+ * @param options options
+ * @param options.unchecked if true then any remaining bytes after deserialization will be ignored 
+ * @param options.object no classes will be created, just plain js object
+ * @param options.construct if true, constructors will be invoked on deserialization
+ * @returns
+ */
+
+type DeserializeStructOptions = {
+  unchecked?: boolean
+} & ({ construct?: boolean } | { object?: boolean });
+export function deserialize<T>(
+  buffer: Uint8Array,
+  classType: Constructor<T> | AbstractType<T>,
+  options?: DeserializeStructOptions
+): T {
+  // buffer = intoUint8Array(buffer);
+  const reader = new BinaryReader(buffer);
+  const result = deserializeStruct(classType)(reader, options);
+  if (!options?.unchecked && reader._offset !== buffer.length) {
+    throw new BorshError(
+      `Unexpected ${buffer.length - reader._offset
+      } bytes after deserialized data`
+    );
+  }
+  return result;
+}
+
+
+
+
+
+function serializeField(
   fieldName: string,
-  fieldType: any, // A simple type of a CustomField
+  fieldType: any,
   options?: { unchecked: boolean }
 ): (obj: any, writer: BinaryWriter) => any {
+  if (typeof fieldType.serialize == "function") {
+    return (obj, writer) => fieldType.serialize(obj, writer);
+  }
   try {
-    // TODO: Handle missing values properly (make sure they never result in just skipped write)
-
-    if (typeof fieldType.serialize == "function") {
-      return (obj, writer) => {
-        fieldType.serialize(obj, writer);
+    const handleFn = (): (obj: any, writer: BinaryWriter) => any => {
+      if (typeof fieldType === "string") {
+        return BinaryWriter.write(fieldType as IntegerType)
       }
-    }
-    else if (fieldType instanceof OptionKind) { // 
-      const fieldHandle = serializeField(fieldName, fieldType.elementType);
 
-      return (obj, writer) => {
-        if (obj != null) {
-          writer.u8(1);
-          fieldHandle(obj, writer)
-        }
-        else {
-          writer.u8(0)
-        }
+      else if (fieldType === Uint8Array) {
+        return BinaryWriter.uint8Array
       }
-      /*  if (value === null || value === undefined) {
-         writer.u8(0);
-       } else {
- 
-         throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
-       } */
-    }
-    else if (typeof fieldType === "string") {
-      switch (fieldType as PrimitiveType) {
-        case "bool":
-          return (obj, writer) => {
-            writer.bool(obj);
+      else if (fieldType instanceof OptionKind) {
+        const fieldHandle = serializeField(fieldName, fieldType.elementType);
+
+        return (obj, writer) => {
+          if (obj != null) {
+            writer.u8(1);
+            fieldHandle(obj, writer)
           }
-        case "string":
-          return (obj, writer) => {
-            writer.string(obj);
+          else {
+            writer.u8(0)
           }
-        default:
-          return BinaryWriter.u(fieldType as IntegerType)
+        }
+      }
+      else if (
+        fieldType instanceof VecKind ||
+        fieldType instanceof FixedArrayKind
+      ) {
+
+        const fieldHandle = serializeField(null, fieldType.elementType);;
+        const sizeHandle = fieldType instanceof FixedArrayKind ? undefined : BinaryWriter.write(fieldType.sizeEncoding)
+        return (obj, writer) => {
+          let len = obj.length;
+          if (!sizeHandle) {
+            if ((fieldType as FixedArrayKind).length != len) {
+              throw new BorshError(
+                `Expecting array of length ${(fieldType as any)[0]}, but got ${obj.length
+                }`
+              );
+            }
+          } else {
+            sizeHandle(len, writer); // For dynamically sized array we write the size as uX according to specification
+          }
+          for (let i = 0; i < len; i++) {
+            fieldHandle(obj[i], writer)
+          }
+        }
+
+      } else {
+        return (obj, writer) => {
+          if (!options?.unchecked && !checkClazzesCompatible(obj.constructor, fieldType)) {
+            throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${obj.constructor.name}`)
+          }
+          serializeStruct(obj.constructor)(obj, writer)
+        }
       }
     }
 
-    else if (fieldType === Uint8Array) {
-      return (obj, writer) => {
-        writer.uint8Array(obj as Uint8Array)
+    const handle = handleFn()
+
+    if (!options?.unchecked) {
+      return (obj: any, writer: BinaryWriter) => {
+        if (obj == null && fieldType instanceof OptionKind === false) {
+          throw new BorshError(`Trying to serialize a null value to field "${fieldName}" which is not allowed since the field is not decorated with "option(...)" but "${typeof fieldType === 'function' && fieldType?.name ? fieldType?.name : fieldType}". Most likely you have forgotten to assign this value before serializing`)
+        }
+        return handle(obj, writer)
       }
     }
-    else if (
-      fieldType instanceof VecKind ||
-      fieldType instanceof FixedArrayKind
-    ) {
+    else {
+      return handle;
 
-      const fieldHandle = serializeField(null, fieldType.elementType);;
-      const sizeHandle = fieldType instanceof FixedArrayKind ? undefined : BinaryWriter.u(fieldType.sizeEncoding)
-      return (obj, writer) => {
-        let len = obj.length;
-        if (!sizeHandle) {
-          if ((fieldType as FixedArrayKind).length != len) {
-            throw new BorshError(
-              `Expecting array of length ${(fieldType as any)[0]}, but got ${obj.length
-              }`
-            );
-          }
-        } else {
-          sizeHandle(len, writer); // For dynamically sized array we write the size as uX according to specification
-        }
-        for (let i = 0; i < len; i++) {
-          fieldHandle(obj[i], writer)
-        }
-      }
-
-    } else {
-      //const structHandle = serializeStruct(fieldType);
-      return (obj, writer) => {
-        if (options?.unchecked && !checkClazzesCompatible(obj.constructor, fieldType)) {
-          throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${obj.constructor.name}`)
-        }
-        serializeStruct(obj.constructor)(obj, writer)
-      }
     }
   } catch (error) {
     if (error instanceof BorshError) {
@@ -112,7 +170,7 @@ export function serializeField(
 }
 
 
-export function serializeStruct(
+function serializeStruct(
   ctor: Function
 ) {
   let handle = (obj: any, writer: BinaryWriter) => { };
@@ -120,7 +178,7 @@ export function serializeStruct(
   let once = false;
   while (true) {
     let prev = handle;
-    let schema = getSchemas(ctor, i);
+    let schema = getSchema(ctor, i);
     if (schema) {
       once = true;
       const index = schema.variant;
@@ -157,27 +215,12 @@ export function serializeStruct(
       return handle;
     }
     i++;
-
-    if (i > 100 && !once) { // TODO
+    if (i == MAX_PROTOTYPE_SEARCH && !once) {
       throw new BorshError(`Class ${ctor.name} is missing in schema`);
     }
   }
 }
 
-/// Serialize given object using schema of the form:
-/// { class_name -> [ [field_name, field_type], .. ], .. }
-export function serialize(
-  obj: any
-): Uint8Array {
-  const writer = new BinaryWriter();
-  let handle = obj.constructor._borsh_serialize
-  if (!handle) {
-    handle = serializeStruct(obj.constructor)
-    obj.constructor._borsh_serialize = handle;
-  }
-  handle(obj, writer)
-  return writer.finalize();
-}
 
 function deserializeField(
   fieldName: string,
@@ -185,14 +228,7 @@ function deserializeField(
 ): (reader: BinaryReader, options: DeserializeStructOptions) => any {
   try {
     if (typeof fieldType === "string") {
-      switch (fieldType as PrimitiveType) {
-        case "bool":
-          return (reader) => reader.bool();
-        case "string":
-          return (reader) => reader.string();
-        default:
-          return BinaryReader.u(fieldType as IntegerType)
-      }
+      return BinaryReader.read(fieldType as IntegerType)
     }
 
     if (fieldType === Uint8Array) {
@@ -200,15 +236,21 @@ function deserializeField(
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
-      let sizeHandle = fieldType instanceof VecKind ? BinaryReader.u(fieldType.sizeEncoding) : () => fieldType.length;
-      const fieldHandle = deserializeField(null, fieldType.elementType);
-      return (reader, options) => {
-        const len = sizeHandle(reader);
-        let arr = new Array(len);
-        for (let i = 0; i < len; i++) {
-          arr[i] = fieldHandle(reader, options);
+      let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number : (() => fieldType.length);
+
+      if (fieldType.elementType === 'u8') {
+        return (reader) => BinaryReader.uint8Array(reader, sizeHandle(reader))
+      }
+      else {
+        const fieldHandle = deserializeField(null, fieldType.elementType);
+        return (reader, options) => {
+          const len = sizeHandle(reader);
+          let arr = new Array(len);
+          for (let i = 0; i < len; i++) {
+            arr[i] = fieldHandle(reader, options);
+          }
+          return arr;
         }
-        return arr;
       }
     }
 
@@ -258,24 +300,19 @@ function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: D
 
 }
 
-const getDeserializationHandle = (clazz: any, offset: number) => {
-  return clazz._borsh_deserialize?.[offset]
-}
 
 const getCreateDeserializationHandle = (clazz: any, offset: number): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => {
   let handle = getDeserializationHandle(clazz, offset);
   if (!handle) {
-    handle = setDeserializationHandle(clazz, offset, createDeserializeStructHandle(clazz, offset))
+    handle = createDeserializeStructHandle(clazz, offset);
+    setDeserializationHandle(clazz, offset, handle)
   }
-  return handle;
+  return handle
 }
+const getDeserializationHandle = (clazz: any, offset: number) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset]
 
 const setDeserializationHandle = (clazz: any, offset: number, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
-  if (!clazz._borsh_deserialize) {
-    clazz._borsh_deserialize = {};
-  }
-  clazz._borsh_deserialize[offset] = handle;
-  return handle;
+  clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset] = handle;
 }
 
 const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
@@ -286,7 +323,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
     }
     return Object.assign((options as any)?.construct ? new currClazz() : Object.create(currClazz.prototype), result);
   }
-  let structSchema = getSchemas(currClazz, offset);
+  let structSchema = getSchema(currClazz, offset);
   if (structSchema) {
     if (offset === 0) {
       let index = getVariantIndex(structSchema);
@@ -420,7 +457,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
 
       }
       else {
-        return endHandle
+        return endHandle(result, reader, options)
       }
 
     }
@@ -429,97 +466,27 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
   else {
     if (handle) {
       return (result, reader, options) => {
-        handle && handle(result, reader, options)
-        return endHandle
+        handle(result, reader, options)
+        return endHandle(result, reader, options)
       }
     }
     return endHandle
   }
-
-
-}
-
-
-
-const intoUint8Array = (buf: Uint8Array) => {
-  if (buf.constructor !== Uint8Array) {
-    if (buf instanceof Uint8Array) {
-      buf = new Uint8Array(buf, buf.byteOffset, buf.length);
-    }
-    else {
-      throw new BorshError("Expecting Uint8Array, instead got: " + buf["constructor"]?.["name"])
-    }
-  }
-  return buf;
-}
-
-/**
- * /// Deserializes object from bytes using schema.
- * @param buffer data
- * @param classType target Class
- * @param options options
- * @param options.unchecked if true then any remaining bytes after deserialization will be ignored
- * @param options.construct if true, constructors will be invoked on deserialization
- * @returns
- */
-
-
-type DeserializeStructOptions = {
-  unchecked?: boolean
-} & ({ construct?: boolean } | { object?: boolean });
-export function deserialize<T>(
-  buffer: Uint8Array,
-  classType: Constructor<T> | AbstractType<T>,
-  options?: DeserializeStructOptions
-): T {
-  // buffer = intoUint8Array(buffer);
-  const reader = new BinaryReader(buffer);
-  const result = deserializeStruct(classType)(reader, options);
-  if (!options?.unchecked && reader._offset !== buffer.length) {
-    throw new BorshError(
-      `Unexpected ${buffer.length - reader._offset
-      } bytes after deserialized data`
-    );
-  }
-  return result;
-}
-
-/// Deserializes object from bytes using schema, without checking the length read
-/**
- * @deprecated use deserialize(..., ..., { unchecked: true }) instead
- */
-export function deserializeUnchecked<T>(
-  classType: { new(args: any): T },
-  buffer: Uint8Array,
-  options?: {
-    construct?: boolean
-  }
-): T {
-  buffer = intoUint8Array(buffer);
-  const reader = new BinaryReader(buffer);
-  return deserializeStruct(classType)(reader, options);
 }
 
 
 const getOrCreateStructMeta = (clazz: any, offset: number): StructKind => {
 
-  let schema: StructKind = getSchemas(clazz, offset)
+  let schema: StructKind = getSchema(clazz, offset)
   if (!schema) {
     schema = new StructKind();
   }
-  /*  if (!getFlag(clazz)) {
-     if (!schemas) {
-       schemas = [];
-     }
-     schemas.push(new StructKind())
-     setFlag(clazz)
-   } */
+
   setSchema(clazz, schema, offset);
   return schema
 }
 const setDependencyToProtoType = (ctor: Function, offset: number) => {
   let proto = Object.getPrototypeOf(ctor);
-  //let last = ctor;
   while (proto.prototype?.constructor != undefined) { // TODO break early if already done this!
     let newOffset = --offset;
     let dependencies = getDependencies(proto, newOffset);
@@ -535,60 +502,11 @@ const setDependencyToProtoType = (ctor: Function, offset: number) => {
     }
     dependencies.push(ctor);
     setDependencies(proto, newOffset, dependencies)
-
-    // last = proto;
     proto = Object.getPrototypeOf(proto);
   }
 }
 
-const setDependency = (ctor: Function, offset: number, dependency: Function) => {
 
-  let dependencies = getDependencies(ctor, offset);
-  if (!dependencies) {
-    dependencies = [dependency];
-    setDependencies(ctor, offset, dependencies);
-
-  }
-  else if (!dependencies.includes(dependency)) {
-    dependencies.push(dependency)
-    setDependencies(ctor, offset, dependencies);
-
-  }
-
-  /* const dependencySchemas = getOrCreateStructMeta(dependency, getOffset(dependency));
-  let key = JSON.stringify(getVariantIndex(dependencySchemas[dependencySchemas.length - 1]));
-  let classPathKey = "__" + getClassID(ctor) + "/" + getClassID(dependency);
-  if (dependencies) {
-    if (dependencies.has(classPathKey) && key != undefined) {
-      dependencies.delete(classPathKey) // superseeded by a depency with an variant
-    }
-    if (key != undefined && dependencies.has(key)) {
-      if (dependencies.get(key) == dependency) {
-        // already added;
-        return;
-      }
-      throw new BorshError(`Conflicting variants: Dependency ${dependencies.get(key).name} and ${dependency.name} share same variant index(es)`)
-    }
-  }
-  else {
-    dependencies = new Map()
-  }
-  if (key == undefined) { */
-  /**
-   * Class is not a variant but a "bridging class" i.e
-   * class A {}
-   * class B extends A { @field... }
-   * 
-   * @variant(0)
-   * class C extends B {}
-   * 
-   * class B has no variant even though A is a dependency on it, so it gets the key "A/B" instead
-   */
-  /*    key = classPathKey;
-   }
-   dependencies.set(key, dependency);
-   setDependencies(ctor, offset, dependencies); */
-}
 const getSuperMostClass = (clazz: Constructor<any>) => {
   while (Object.getPrototypeOf(clazz).prototype != undefined) {
     clazz = Object.getPrototypeOf(clazz);
@@ -604,40 +522,18 @@ const checkClazzesCompatible = (clazzA: Constructor<any> | AbstractType<any>, cl
   return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
 
-/* const getFullPrototypeName = (clazz: Function) => {
-  let str = clazz.name;
-  while (Object.getPrototypeOf(clazz).prototype != undefined) {
-    clazz = Object.getPrototypeOf(clazz);
-    str += '/' + clazz.name
-  }
-  return str;
-}
-
-const getClassID = (ctor: Function) => {
-  return getFullPrototypeName(ctor)
-}
-
-const getDependencyKey = (ctor: Function) => {
-
-  return 456;// "_borsh_dependency_" + getClassID(ctor);
-} */
-
-const getDependencies = (ctor: Function, offset: number): Function[] | undefined => {
-  return ctor.prototype[offset + 100]//[getDependencyKey(ctor)]
-
-}
+const getDependencies = (ctor: Function, offset: number): Function[] | undefined => ctor.prototype[PROTOTYPE_DEPENDENCY_HANDLER_OFFSET + offset]
 
 const setDependencies = (ctor: Function, offset: number, dependencies: Function[]) => {
-  return ctor.prototype[offset + 100] = dependencies // [getDependencyKey(ctor)] 
+  ctor.prototype[PROTOTYPE_DEPENDENCY_HANDLER_OFFSET + offset] = dependencies // [getDependencyKey(ctor)] 
 }
 
-
 const getAllDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
-  let existing = ctor.prototype[offset + 100] as Function[];
+  let existing = getDependencies(ctor, offset);
   if (existing) {
     let ret: Map<Function, { schema: StructKind, offset: number }> = new Map()
     for (const v of existing) {
-      let schema = getSubMostSchemas(v);
+      let schema = getSubMostSchema(v);
       if (schema.fields.length > 0 || schema.variant != undefined) { // non trivial
         ret.set(v, { schema, offset: getOffset(v) });
       }
@@ -653,13 +549,6 @@ const getAllDependencies = (ctor: Function, offset: number): Map<Function, { sch
 }
 
 
-
-/**
- * Flat map class inheritance tree into hashmap where key represents variant key
- * @param ctor 
- * @param mem 
- * @returns a map of dependencies
- */
 const getDependenciesRecursively = (ctor: Function, offset: number, mem: Function[] = []): Function[] => {
   let dep = getDependencies(ctor, offset);
   if (dep) {
@@ -674,32 +563,18 @@ const getDependenciesRecursively = (ctor: Function, offset: number, mem: Functio
   return mem
 }
 
-/* 
-export const setFlag = (ctor: Function) => {
-  ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)] = true
-}
- 
-export const getFlag = (ctor: Function): StructKind => {
-  return ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)];
-} */
-
-
 
 const setSchema = (ctor: Function, schemas: StructKind, offset: number) => {
-  //ctor.prototype.constructor["_borsh_schema_" + getClassID(ctor)] = schema
-  ctor.prototype[987 + offset] = schemas;
+  ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + offset] = schemas;
 
 }
 
+export const getSchema = (ctor: Function, offset: number = getOffset(ctor)): StructKind => ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + offset]
 
-export const getSchemas = (ctor: Function, offset: number): StructKind => {
-  return ctor.prototype[987 + offset];
-}
-
-export const getSubMostSchemas = (ctor: Function): StructKind => {
+const getSubMostSchema = (ctor: Function): StructKind => {
   let last = undefined;
-  for (var i = 0; i < 1000; i++) {
-    const curr = ctor.prototype[987 + i];
+  for (var i = 0; i < MAX_PROTOTYPE_SEARCH; i++) {
+    const curr = ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + i];
     if (!curr && last && !getDependencies(ctor, i)?.length) {
       return last;
     }
@@ -708,19 +583,14 @@ export const getSubMostSchemas = (ctor: Function): StructKind => {
   return;
 }
 
-export const getSchema = (ctor: Function, offset: number = getOffset(ctor)): StructKind => {
-  const schemas = getSchemas(ctor, offset);
-  return schemas;
-}
 
 
-
-export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
+const getSchemasBottomUp = (ctor: Function): StructKind[] => {
 
   let last = undefined;
   let ret: StructKind[] = [];
   for (var i = 0; i < 1000; i++) {
-    const curr = ctor.prototype[987 + i];
+    const curr = getSchema(ctor, i);
     if (!curr) {
       if (last && !getDependencies(ctor, i)?.length) {
         return ret;
@@ -734,12 +604,6 @@ export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
   return ret;
 }
 
-/* let schema = getSchema(ctor);
-return [{ schema, clazz: ctor }] 
-return getSchemas(ctor, offset);
- 
-}
- 
 /**
  *
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
@@ -747,27 +611,42 @@ return getSchemas(ctor, offset);
  */
 export const variant = (index: number | number[] | string) => {
   return (ctor: Function) => {
-    const offset = getOffset(ctor);
-    setDependencyToProtoType(ctor, offset); // TODO
+    let offset = getOffset(ctor);
+    setDependencyToProtoType(ctor, offset);
     let schemas = getOrCreateStructMeta(ctor, offset);
-
-    // Create a custom serialization, for enum by prepend instruction index
     schemas.variant = index;
 
-    // Define Schema for this class, even though it might miss fields since this is a variant
-    /* const clazzes = extendingClasses(ctor);
-    let prev = ctor;
-    for (const [i, clazz] of clazzes.entries()) {
-      setDependency(clazz, i, prev); // Super classes are marked so we know they have some importance/meaningfulness
-      prev = clazz;
-    } */
+    // Check for variant conficts 
+    for (let i = offset - 1; i >= 0; i--) {
+      const dependencies = getDependencies(ctor, i)
+      if (dependencies) {
+        for (const dependency of dependencies) {
+          if (dependency !== ctor) {
+            let otherVariant = getVariantIndex(getSchema(dependency, getOffset(dependency)))
+            if (typeof otherVariant !== typeof index) {
+              throw new BorshError(`Variant of ${ctor.name} have different type compared to its sibling: ${dependency.name}, expecting either number, number[] (with same sizes) or string, but not a combination of them`)
+            }
+            else if (index === otherVariant || (Array.isArray(index) && Array.isArray(otherVariant) && (index.length !== otherVariant.length || index.every((value, index) => value === (otherVariant as number[])[index])))) {
+              throw new BorshError(`Variant of ${ctor.name}: ${variant} is the same as for ${dependency.name} which is not allowed (non-determinism)`)
+
+            }
+          }
+          if (getVariantIndex(getSchema(dependency, getOffset(dependency))) != null) {
+            return; // No need to validate more
+          }
+        }
+      }
+      if (getVariantIndex(getSchema(ctor, i)) != null) {
+        return; // No need to validate more
+      }
+    }
+  }
 
 
-  };
 };
 
-export const getVariantIndex = (schema: StructKind): number | number[] | string | undefined => {
-  return schema.variant /* getOrCreateStructMeta(clazz).variant */;
+const getVariantIndex = (schema: StructKind): number | number[] | string | undefined => {
+  return schema.variant
 };
 
 /**
@@ -777,7 +656,7 @@ export const getVariantIndex = (schema: StructKind): number | number[] | string 
 export function field(properties: SimpleField | CustomField<any>) {
   return (target: {} | any, name?: PropertyKey): any => {
     const offset = getOffset(target.constructor);
-    setDependencyToProtoType(target.constructor, offset); // TODO
+    setDependencyToProtoType(target.constructor, offset);
     const schemas = getOrCreateStructMeta(target.constructor, offset);
     const schema = schemas;
     const key = name.toString();
@@ -930,56 +809,3 @@ export const getDiscriminator = (constructor: Constructor<any>): Uint8Array => {
 
   return writer.finalize();
 }
-
-/* handle = (result, reader, options) => {
-     prev(result, reader, options)
-     for (const [actualClazz, dependency] of dependencies) {
-       const variantIndex = getVariantIndex(dependency.schema);
-       if (variantIndex !== undefined) {
-         if (typeof variantIndex === "number") {
-
-           if (!variantsIndex) {
-             variantsIndex = [reader.u8()];
-           }
-           if (variantIndex == variantsIndex[0]) {
-             next = actualClazz;
-             nextOffset = dependency.offset
-             break;
-           }
-         }
-         else if (Array.isArray(variantIndex)) { // variant is array, check all values
-
-           if (!variantsIndex) {
-             variantsIndex = [];
-             while (variantsIndex.length < variantIndex.length) {
-               variantsIndex.push(reader.u8());
-             }
-           }
-
-           // Compare variants
-           if (
-             variantsIndex.length === variantIndex.length &&
-             (variantsIndex as number[]).every((value, index) => value === variantIndex[index])
-           ) {
-             next = actualClazz;
-             nextOffset = dependency.offset
-             break;
-           }
-         }
-
-         else { // is string
-           if (variantString == undefined) {
-             variantString = reader.string();
-           }
-           // Compare variants is just string compare
-           if (
-             variantString === variantIndex
-           ) {
-             next = actualClazz;
-             nextOffset = dependency.offset
-             break;
-           }
-         }
-       }
-     } 
- }*/
