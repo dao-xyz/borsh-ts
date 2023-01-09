@@ -9,7 +9,7 @@
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
 
-This implementation is performant, in fact, It slightly outperforms protobuf.js [benchmark 2](./benchmark/bench3.ts) (10% faster), [benchmark 3](./benchmark/bench3.ts) (5% faster)
+This implementation is performant, in fact, It slightly outperforms protobuf.js [benchmark 2](./benchmark/bench3.ts) (15% faster), [benchmark 3](./benchmark/bench3.ts) (10% faster)
 
 ### How `borsh-ts` differs from `borsh-js`
 - Schema is defined using decorators rather than building a map. The schema is stored alongside the class behind the scenes so there is no longer need to pass it during serialization and deserialization. 
@@ -356,9 +356,9 @@ yarn pretty
 ## Benchmarks 
 [See benchmark script here](./benchmark/benchmar3.ts)
 
-* json x 1,997,857 ops/sec ±0.33% (243 runs sampled)
-* borsh x 3,570,224 ops/sec ±0.58% (242 runs sampled)
-* protobujs x 3,357,032 ops/sec ±0.54% (241 runs sampled)
+* json x 2,055,952 ops/sec ±0.33% (241 runs sampled)
+* borsh x 3,973,669 ops/sec ±0.56% (243 runs sampled)
+* protobujs x 3,365,144 ops/sec ±0.45% (243 runs sampled)
 
 There is still some work to be done on allocating right amount of memory on serialization and improve overall performance on deserialization. JSON is fast in Javascript environments, since the JSON lib is heavily optimized in Javascript runtimes.
 
