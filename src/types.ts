@@ -25,6 +25,10 @@ export const extendingClasses = (clazz: any): any[] => {
   return ret;
 };
 
+/**
+ * @param clazz 
+ * @returns extendingClasses(clazz).length
+ */
 export const getOffset = (clazz: any) => extendingClasses(clazz).length;
 
 export interface OverrideType<T> {
@@ -40,8 +44,6 @@ export type IntegerType = "u8"
   | "u512"
 
 export type PrimitiveType = "bool"
-  | "f32"
-  | "f64"
   | "string"
   | IntegerType
 
