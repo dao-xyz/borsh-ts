@@ -7,8 +7,8 @@ import crypto from 'crypto';
 
 
 /* 
-* borsh x 2,197,862 ops/sec ±0.13% (246 runs sampled)
-* protobujs x 2,105,680 ops/sec ±0.43% (246 runs sampled)
+* borsh x 2,442,475 ops/sec ±0.44% (243 runs sampled)
+* protobujs x 2,229,004 ops/sec ±0.50% (243 runs sampled)
 */
 
 function getRandomInt(max: number) {

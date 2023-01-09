@@ -3,12 +3,13 @@ import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 import { PrimitiveType, SmallIntegerType } from './types.js';
 
-const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for v8 fn optimization 
+const allocUnsafeFn = (): (len: number) => Uint8Array => { // TODO return fn instead for v8 fn optimization 
   if ((globalThis as any).Buffer) {
-    return (globalThis as any).Buffer.allocUnsafe(len)
+    return (globalThis as any).Buffer.allocUnsafe
   }
-  return new Uint8Array(len)
+  return (len) => new Uint8Array(len);
 }
+const allocUnsafe = allocUnsafeFn();
 
 
 export class BinaryWriter {

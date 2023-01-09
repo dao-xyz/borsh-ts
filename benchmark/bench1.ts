@@ -4,9 +4,9 @@ import protobuf from "protobufjs";
 
 // Run with "node --loader ts-node/esm ./benchmark/bench1.ts"
 /*
-* json x 2,910,221 ops/sec ±0.46% (98 runs sampled)
-* borsh x 9,893,398 ops/sec ±0.60% (245 runs sampled)
-* protobujs x 9,513,112 ops/sec ±0.13% (244 runs sampled)
+* json x 3,103,049 ops/sec ±0.53% (98 runs sampled)
+* borsh x 11,503,732 ops/sec ±0.24% (244 runs sampled)
+* protobujs x 9,732,443 ops/sec ±0.48% (247 runs sampled)
 */
 
 function getRandomInt(max: number) {
