@@ -339,19 +339,9 @@ function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: D
 }
 
 
-const getCreateDeserializationHandle = (clazz: any, offset: number): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => {
-  let handle = getDeserializationHandle(clazz, offset);
-  if (!handle) {
-    handle = createDeserializeStructHandle(clazz, offset);
-    setDeserializationHandle(clazz, offset, handle)
-  }
-  return handle
-}
+const getCreateDeserializationHandle = (clazz: any, offset: number): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => getDeserializationHandle(clazz, offset) || setDeserializationHandle(clazz, offset, createDeserializeStructHandle(clazz, offset))
 const getDeserializationHandle = (clazz: any, offset: number) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset]
-
-const setDeserializationHandle = (clazz: any, offset: number, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
-  clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset] = handle;
-}
+const setDeserializationHandle = (clazz: any, offset: number, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset] = handle;
 
 const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
   let handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any | undefined = undefined;
