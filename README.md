@@ -149,6 +149,24 @@ class TestStruct {
 ```
 
 
+**Strings**
+
+*With Borsh specification, string sizes will be encoded with 'u32'*
+```typescript 
+class TestStruct {
+  @field({ type: 'string' })
+  public string: string; 
+}
+```
+
+*You can override this (i.e. not longer adhere to the specification)*
+```typescript 
+class TestStruct {
+  @field({ type: string('u8')}) // less memory for small strings
+  public string: string; 
+}
+```
+
 **Arrays**
 
 ***Dynamically sized***

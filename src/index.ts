@@ -10,7 +10,7 @@ import {
   AbstractType,
   IntegerType,
   getOffset,
-  extendingClasses,
+  StringType,
 } from "./types.js";
 export * from "./binary.js";
 export * from "./types.js";
@@ -137,7 +137,14 @@ function serializeField(
           }
         }
 
-      } else {
+      }
+      else if (fieldType instanceof StringType) {
+        const [sizeHandle, width] = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
+        return (obj, writer) => BinaryWriter.stringCustom(obj, writer, sizeHandle, width)
+      }
+
+
+      else {
         return (obj, writer) => {
           if (!options?.unchecked && !checkClazzesCompatible(obj.constructor, fieldType)) {
             throw new BorshError(`Field value of field ${fieldName} is not instance of expected Class ${getSuperMostClass(fieldType)?.name}. Got: ${obj.constructor.name}`)
@@ -237,7 +244,6 @@ function deserializeField(
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
       let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number : (() => fieldType.length);
-
       if (fieldType.elementType === 'u8') {
         return (reader) => BinaryReader.uint8Array(reader, sizeHandle(reader))
       }
@@ -252,6 +258,10 @@ function deserializeField(
           return arr;
         }
       }
+    }
+
+    if (fieldType instanceof StringType) {
+      return (reader) => BinaryReader.stringCustom(reader, BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number)
     }
 
     if (typeof fieldType["deserialize"] == "function") {

@@ -12,9 +12,8 @@ import {
   getDiscriminator,
   getSchema,
   BorshError,
+  string,
 } from "../index.js";
-
-import crypto from "crypto";
 
 describe("struct", () => {
   test("constructor is not called", () => {
@@ -1190,6 +1189,46 @@ describe("string", () => {
     expect(deserializedSome.a).toEqual("a string 😊");
     expect(deserializedSome.b).toEqual(123);
     expect(deserializedSome.c).toEqual("that ends");
+  });
+
+  test("custom length", () => {
+    class TestStruct {
+      @field({ type: string("u8") })
+      public a: string;
+
+      @field({ type: "u8" })
+      public b: number;
+
+      @field({ type: string("u32") })
+      public c: string;
+
+      @field({ type: string("u16") })
+      public d: string;
+
+      constructor(a: string, b: number, c: string, d: string) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.d = d;
+      }
+    }
+    validate(TestStruct);
+
+    const bufSome = serialize(
+      new TestStruct("a string 😊", 123, "that ends", "somewhere")
+    );
+    expect(new Uint8Array(bufSome)).toEqual(
+      new Uint8Array([
+        13, 97, 32, 115, 116, 114, 105, 110, 103, 32, 240, 159, 152, 138, 123,
+        9, 0, 0, 0, 116, 104, 97, 116, 32, 101, 110, 100, 115, 9, 0, 115, 111,
+        109, 101, 119, 104, 101, 114, 101,
+      ])
+    );
+    const deserializedSome = deserialize(new Uint8Array(bufSome), TestStruct);
+    expect(deserializedSome.a).toEqual("a string 😊");
+    expect(deserializedSome.b).toEqual(123);
+    expect(deserializedSome.c).toEqual("that ends");
+    expect(deserializedSome.d).toEqual("somewhere");
   });
 });
 

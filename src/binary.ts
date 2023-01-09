@@ -1,7 +1,7 @@
 import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
-import { IntegerType, PrimitiveType } from './types.js';
+import { PrimitiveType, SmallIntegerType } from './types.js';
 
 const allocUnsafe = (len: number): Uint8Array => { // TODO return fn instead for v8 fn optimization 
   if ((globalThis as any).Buffer) {
@@ -132,8 +132,20 @@ export class BinaryWriter {
       utf8.write(str, writer._buf, offset + 4);
     }
     writer.totalSize += 4 + len;
-
   }
+
+  public static stringCustom(str: string, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
+    const len = utf8.length(str);
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      lengthWriter(len, writer._buf, offset)
+      utf8.write(str, writer._buf, offset + lengthSize);
+    }
+    writer.totalSize += lengthSize + len;
+  }
+
 
   public uint8Array(array: Uint8Array) {
     return BinaryWriter.uint8Array(array, this)
@@ -149,6 +161,21 @@ export class BinaryWriter {
     }
     writer.totalSize += array.length + 4;
 
+  }
+
+  public static smallNumberEncoding(encoding: SmallIntegerType): [((value: number, buf: Uint8Array, offset: number) => void), number] {
+    if (encoding === 'u8') {
+      return [(value: number, buf: Uint8Array, offset: number) => buf[offset] = value as number, 1]
+    }
+    else if (encoding === 'u16') {
+      return [writeUInt16LE, 2]
+    }
+    else if (encoding === 'u32') {
+      return [writeUInt32LE, 4]
+    }
+    else {
+      throw new Error("Unsupported encoding: " + encoding)
+    }
   }
 
 
@@ -306,6 +333,19 @@ export class BinaryReader {
       throw new BorshError(`Error decoding UTF-8 string: ${e}`);
     }
   }
+
+  static stringCustom(reader: BinaryReader, length: (reader: BinaryReader) => number): string {
+    const len = length(reader);
+    try {
+      const end = reader._offset + len;
+      const string = utf8.read(reader._buf, reader._offset, end);
+      reader._offset = end;
+      return string;
+    } catch (e) {
+      throw new BorshError(`Error decoding UTF-8 string: ${e}`);
+    }
+  }
+
   public static read(encoding: PrimitiveType): ((reader: BinaryReader) => number) | ((reader: BinaryReader) => bigint) | ((reader: BinaryReader) => boolean) | ((reader: BinaryReader) => string) {
     if (encoding === 'u8') {
       return BinaryReader.u8

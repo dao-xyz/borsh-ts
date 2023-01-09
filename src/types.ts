@@ -35,9 +35,12 @@ export interface OverrideType<T> {
   serialize: (arg: T, writer: BinaryWriter) => void;
   deserialize: (reader: BinaryReader) => T;
 }
-export type IntegerType = "u8"
+export type SmallIntegerType = "u8"
   | "u16"
   | "u32"
+
+export type IntegerType =
+  SmallIntegerType
   | "u64"
   | "u128"
   | "u256"
@@ -54,6 +57,7 @@ export type FieldType =
   | CustomField<any>
   | WrappedType
   | Uint8Array
+  | StringType
 
 export type SimpleField = { type: FieldType; index?: number };
 export interface CustomField<T> extends OverrideType<T> {
@@ -73,6 +77,18 @@ export class WrappedType {
     return undefined;
   }
 }
+
+export class StringType {
+  sizeEncoding: SmallIntegerType
+  constructor(sizeEncoding: SmallIntegerType) {
+    this.sizeEncoding = sizeEncoding;
+  }
+}
+
+export const string = (sizeEncoding: SmallIntegerType): StringType => {
+  return new StringType(sizeEncoding);
+};
+
 
 export class OptionKind extends WrappedType { }
 
