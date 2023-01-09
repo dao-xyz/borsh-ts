@@ -354,7 +354,7 @@ yarn pretty
 ```
 
 ## Benchmarks 
-[See benchmark script here](./benchmark/benchmar3.ts)
+[See benchmark script here](./benchmark/benchmark3.ts)
 
 * json x 2,055,952 ops/sec ±0.33% (241 runs sampled)
 * borsh x 3,973,669 ops/sec ±0.56% (243 runs sampled)
