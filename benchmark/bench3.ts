@@ -7,8 +7,8 @@ import crypto from 'crypto';
 
 
 /* 
-* borsh x 2,442,475 ops/sec ±0.44% (243 runs sampled)
-* protobujs x 2,229,004 ops/sec ±0.50% (243 runs sampled)
+* borsh x 2,587,886 ops/sec ±0.38% (395 runs sampled)
+* protobujs x 2,262,857 ops/sec ±0.22% (395 runs sampled)
 */
 
 function getRandomInt(max: number) {
@@ -48,9 +48,9 @@ const borshArgs = { unchecked: true, object: true }
 const suite = new B.Suite()
 suite.add("borsh", () => {
     deserialize(serialize(getTestObject()), Test, borshArgs);
-}, { minSamples: 150 }).add('protobujs', () => {
+}, { minSamples: 300 }).add('protobujs', () => {
     ProtoMessage.toObject(ProtoMessage.decode(ProtoMessage.encode(getTestObject()).finish()))
-}, { minSamples: 150 }).on('cycle', (event: any) => {
+}, { minSamples: 300 }).on('cycle', (event: any) => {
     console.log(String(event.target));
 }).on('complete', function () {
     console.log('Fastest is ' + this.filter('fastest').map('name'));
