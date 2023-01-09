@@ -118,22 +118,42 @@ function serializeField(
         fieldType instanceof FixedArrayKind
       ) {
 
-        const fieldHandle = serializeField(null, fieldType.elementType);;
-        const sizeHandle = fieldType instanceof FixedArrayKind ? undefined : BinaryWriter.write(fieldType.sizeEncoding)
-        return (obj, writer) => {
-          let len = obj.length;
-          if (!sizeHandle) {
-            if ((fieldType as FixedArrayKind).length != len) {
-              throw new BorshError(
-                `Expecting array of length ${(fieldType as any)[0]}, but got ${obj.length
-                }`
-              );
+        if (fieldType.elementType === 'u8') {
+          if (fieldType instanceof FixedArrayKind) {
+            return options?.unchecked ? BinaryWriter.uint8ArrayFixed : (obj, writer) => {
+              if (obj.length !== fieldType.length) {
+                throw new BorshError(`Provided array does not equal fixed array size of field: ${fieldName}. Recieved: ${obj.length}, Expected: ${fieldType.length}`)
+              }
+              return BinaryWriter.uint8ArrayFixed(obj, writer)
             }
-          } else {
-            sizeHandle(len, writer); // For dynamically sized array we write the size as uX according to specification
           }
-          for (let i = 0; i < len; i++) {
-            fieldHandle(obj[i], writer)
+          else {
+            if (fieldType.sizeEncoding === 'u32')
+              return BinaryWriter.uint8Array
+            else {
+              const [sizeHandle, width] = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
+              return (obj, writer) => BinaryWriter.uint8ArrayCustom(obj, writer, sizeHandle, width)
+            }
+          }
+        }
+        else {
+          const sizeHandle = fieldType instanceof FixedArrayKind ? undefined : BinaryWriter.write(fieldType.sizeEncoding)
+          const fieldHandle = serializeField(null, fieldType.elementType);;
+          return (obj, writer) => {
+            let len = obj.length;
+            if (!sizeHandle) {
+              if ((fieldType as FixedArrayKind).length != len) {
+                throw new BorshError(
+                  `Expecting array of length ${(fieldType as any)[0]}, but got ${obj.length
+                  }`
+                );
+              }
+            } else {
+              sizeHandle(len, writer); // For dynamically sized array we write the size as uX according to specification
+            }
+            for (let i = 0; i < len; i++) {
+              fieldHandle(obj[i], writer)
+            }
           }
         }
 
@@ -243,11 +263,17 @@ function deserializeField(
     }
 
     if (fieldType instanceof VecKind || fieldType instanceof FixedArrayKind) {
-      let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number : (() => fieldType.length);
       if (fieldType.elementType === 'u8') {
-        return (reader) => BinaryReader.uint8Array(reader, sizeHandle(reader))
+        if (fieldType instanceof FixedArrayKind) {
+          return (reader) => reader.buffer(fieldType.length)
+        }
+        else {
+          const sizeHandle = BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number;
+          return (reader) => BinaryReader.uint8Array(reader, sizeHandle(reader))
+        }
       }
       else {
+        let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number : (() => fieldType.length);
         const fieldHandle = deserializeField(null, fieldType.elementType);
         return (reader, options) => {
           const len = sizeHandle(reader);

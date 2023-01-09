@@ -97,14 +97,14 @@ export const option = (type: FieldType): OptionKind => {
 };
 
 export class VecKind extends WrappedType {
-  sizeEncoding: IntegerType
-  constructor(elementType: FieldType, sizeEncoding: IntegerType) {
+  sizeEncoding: SmallIntegerType
+  constructor(elementType: FieldType, sizeEncoding: SmallIntegerType) {
     super(elementType)
     this.sizeEncoding = sizeEncoding;
   }
 }
 
-export const vec = (type: FieldType, sizeEncoding: IntegerType = 'u32'): VecKind => {
+export const vec = (type: FieldType, sizeEncoding: SmallIntegerType = 'u32'): VecKind => {
   return new VecKind(type, sizeEncoding);
 };
 

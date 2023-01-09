@@ -1,4 +1,4 @@
-import { field, serialize, deserialize, BinaryReader, BinaryWriter } from '../src/index.js'
+import { field, serialize, deserialize, BinaryReader, BinaryWriter, fixedArray } from '../src/index.js'
 import B from 'benchmark'
 import protobuf from "protobufjs";
 import crypto from 'crypto';

@@ -152,6 +152,7 @@ export class BinaryWriter {
     return BinaryWriter.uint8Array(array, this)
 
   }
+
   public static uint8Array(array: Uint8Array, writer: BinaryWriter) {
     let offset = writer.totalSize;
     const last = writer._writes;
@@ -161,8 +162,30 @@ export class BinaryWriter {
       writer._buf.set(array, offset + 4);
     }
     writer.totalSize += array.length + 4;
+  }
+
+  public static uint8ArrayCustom(array: Uint8Array, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      lengthWriter(array.length, writer._buf, offset)
+      writer._buf.set(array, offset + lengthSize);
+    }
+    writer.totalSize += array.length + lengthSize;
+  }
+
+  public static uint8ArrayFixed(array: Uint8Array, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => {
+      last();
+      writer._buf.set(array, offset);
+    }
+    writer.totalSize += array.length;
 
   }
+
 
   public static smallNumberEncoding(encoding: SmallIntegerType): [((value: number, buf: Uint8Array, offset: number) => void), number] {
     if (encoding === 'u8') {
@@ -380,7 +403,7 @@ export class BinaryReader {
     }
   }
 
-  private buffer(len: number): Uint8Array {
+  public buffer(len: number): Uint8Array {
     const end = this._offset + len;
     const result = this._buf.subarray(this._offset, end);
     this._offset = end;
@@ -395,6 +418,7 @@ export class BinaryReader {
   static uint8Array(reader: BinaryReader, size = reader.u32()): Uint8Array {
     return reader.buffer(size);
   }
+
 
   readArray(fn: any): any[] {
     const len = this.u32();
