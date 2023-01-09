@@ -38,12 +38,7 @@ export function serialize(
   obj: any
 ): Uint8Array {
   const writer = new BinaryWriter();
-  let handle = obj.constructor._borsh_serialize
-  if (!handle) {
-    handle = serializeStruct(obj.constructor)
-    obj.constructor._borsh_serialize = handle;
-  }
-  handle(obj, writer)
+  (obj.constructor._borsh_serialize || (obj.constructor._borsh_serialize = serializeStruct(obj.constructor)))(obj, writer)
   return writer.finalize();
 }
 
@@ -200,41 +195,57 @@ function serializeField(
 function serializeStruct(
   ctor: Function
 ) {
-  let handle = (obj: any, writer: BinaryWriter) => { };
+  let handle: (obj: any, writer: BinaryWriter) => any = undefined;
   var i = 0;
   let once = false;
   while (true) {
-    let prev = handle;
     let schema = getSchema(ctor, i);
     if (schema) {
       once = true;
       const index = schema.variant;
       if (index != undefined) {
+        let prev = handle;
+
         if (typeof index === "number") {
-          handle = (obj, writer) => { prev(obj, writer), writer.u8(index) }
+          handle = prev ? (obj, writer) => { prev(obj, writer); writer.u8(index) } : (_obj, writer) => BinaryWriter.u8(index, writer)
         } else if (Array.isArray(index)) {
-          handle = (obj, writer) => {
-            prev(obj, writer)
-            for (const i of index) {
-              writer.u8(i);
+          if (prev) {
+            handle = (obj, writer) => {
+              prev(obj, writer)
+              for (const i of index) {
+                writer.u8(i);
+              }
+            }
+          }
+          else {
+            handle = (_obj, writer) => {
+              for (const i of index) {
+                writer.u8(i);
+              }
             }
           }
 
         }
         else { // is string
-          handle = (obj, writer) => {
+          handle = prev ? (obj, writer) => {
             prev(obj, writer);
             writer.string(index);
-          }
+          } : (_obj, writer) => writer.string(index);
         }
       }
       for (const field of schema.fields) {
-        const fieldHandle = serializeField(field.key, field.type);
         let prev = handle;
-        handle = (obj, writer) => {
-          prev(obj, writer);
-          fieldHandle(obj[field.key], writer)
+        const fieldHandle = serializeField(field.key, field.type);
+        if (prev) {
+          handle = (obj, writer) => {
+            prev(obj, writer);
+            fieldHandle(obj[field.key], writer)
+          }
         }
+        else {
+          handle = (obj, writer) => fieldHandle(obj[field.key], writer)
+        }
+
       }
     }
 
@@ -299,21 +310,13 @@ function deserializeField(
         fieldName,
         fieldType.elementType);
       return (reader, options) => {
-        const option = reader.u8();
-        if (option) {
-          return fieldHandle(
-            reader,
-            options
-          );
-        }
-        return undefined;
+        return reader.u8() ? fieldHandle(
+          reader,
+          options
+        ) : undefined;
       }
     }
-    const structHandle = deserializeStruct(fieldType);
-    return (reader, options) => {
-      const result = structHandle(reader, options);
-      return result;
-    }
+    return deserializeStruct(fieldType)
 
   } catch (error) {
     if (error instanceof BorshError) {
@@ -325,14 +328,13 @@ function deserializeField(
 function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
 
   const handle = getCreateDeserializationHandle(targetClazz, 0);
-  const ret = (reader: BinaryReader, options?: DeserializeStructOptions) => {
+  return (reader: BinaryReader, options?: DeserializeStructOptions) => {
     const result = handle({}, reader, options)
     if (!options?.unchecked && !(options as any)?.object && !checkClazzesCompatible(result.constructor, targetClazz)) {
       throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${result.constructor?.name} which are not compatible`);
     }
     return result;
-  }
-  return ret;
+  };
 
 }
 
