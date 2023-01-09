@@ -360,9 +360,6 @@ yarn pretty
 * borsh x 3,973,669 ops/sec ±0.56% (243 runs sampled)
 * protobujs x 3,365,144 ops/sec ±0.45% (243 runs sampled)
 
-There is still some work to be done on allocating right amount of memory on serialization and improve overall performance on deserialization. JSON is fast in Javascript environments, since the JSON lib is heavily optimized in Javascript runtimes.
-
-
 # License
 This repository is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 See [LICENSE-MIT](LICENSE-MIT.txt) and [LICENSE-APACHE](LICENSE-APACHE) for details.
