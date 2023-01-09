@@ -3,7 +3,7 @@ import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 import { PrimitiveType, SmallIntegerType } from './types.js';
 
-const allocUnsafeFn = (): (len: number) => Uint8Array => { // TODO return fn instead for v8 fn optimization 
+const allocUnsafeFn = (): (len: number) => Uint8Array => {
   if ((globalThis as any).Buffer) {
     return (globalThis as any).Buffer.allocUnsafe
   }
@@ -41,6 +41,7 @@ export class BinaryWriter {
   }
 
   public static u8(value: number, writer: BinaryWriter) {
+    checkInt(value, 0, 0xff, 1);
     let offset = writer.totalSize;
     const last = writer._writes;
     writer._writes = () => { last(); (writer._buf[offset] = value) };
@@ -303,9 +304,7 @@ export class BinaryReader {
   }
 
   u64(): bigint {
-    const value = readBigUInt64LE(this._buf, this._offset);
-    this._offset += 8;
-    return value
+    return BinaryReader.u64(this)
   }
 
   static u64(reader: BinaryReader): bigint {
@@ -315,9 +314,8 @@ export class BinaryReader {
   }
 
   u128(): bigint {
-    const value = readUIntLE(this._buf, this._offset, 16);
-    this._offset += 16;
-    return value
+    return BinaryReader.u128(this)
+
   }
   static u128(reader: BinaryReader): bigint {
     const value = readUIntLE(reader._buf, reader._offset, 16);
@@ -325,10 +323,9 @@ export class BinaryReader {
     return value
   }
   u256(): bigint {
-    const value = readUIntLE(this._buf, this._offset, 32);
-    this._offset += 32;
-    return value
+    return BinaryReader.u256(this)
   }
+
   static u256(reader: BinaryReader): bigint {
     const value = readUIntLE(reader._buf, reader._offset, 32);
     reader._offset += 32;
