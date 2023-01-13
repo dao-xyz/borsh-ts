@@ -75,7 +75,7 @@ const deserialized = deserialize(serialized,SomeClass);
 ```
 
 ## Examples of schema generation using decorators
-For more examples, see the [tests](./src/__tests__index.test.ts).
+For more examples, see the [tests](./src/__tests__/index.test.ts).
 
 **Enum, with 2 variants** 
 
