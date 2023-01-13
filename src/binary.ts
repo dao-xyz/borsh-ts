@@ -2,6 +2,7 @@ import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt1
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 import { PrimitiveType, SmallIntegerType } from './types.js';
+import { readFloatLE, writeFloatLE, readDoubleLE, writeDoubleLE } from '@protobufjs/float'
 
 const allocUnsafeFn = (): (len: number) => Uint8Array => {
   if ((globalThis as any).Buffer) {
@@ -71,6 +72,7 @@ export class BinaryWriter {
 
   }
 
+
   public u64(value: number | bigint) {
     return BinaryWriter.u64(value, this)
   }
@@ -118,6 +120,34 @@ export class BinaryWriter {
     writer._writes = () => { last(); writeBufferLEBigInt(value, 64, writer._buf, offset) }
     writer.totalSize += 64;
 
+  }
+
+  public f32(value: number) {
+    return BinaryWriter.f32(value, this)
+  }
+
+  public static f32(value: number, writer: BinaryWriter) {
+    if (Number.isNaN(value)) {
+      throw new BorshError("NaN is not supported for f32")
+    }
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeFloatLE(value, writer._buf, offset) }
+    writer.totalSize += 4;
+  }
+
+  public f64(value: number) {
+    return BinaryWriter.f64(value, this)
+  }
+
+  public static f64(value: number, writer: BinaryWriter) {
+    if (Number.isNaN(value)) {
+      throw new BorshError("NaN is not supported for f64")
+    }
+    let offset = writer.totalSize;
+    const last = writer._writes;
+    writer._writes = () => { last(); writeDoubleLE(value, writer._buf, offset) }
+    writer.totalSize += 8;
   }
 
   public string(str: string) {
@@ -230,6 +260,12 @@ export class BinaryWriter {
       return BinaryWriter.bool
 
     }
+    else if (encoding === 'f32') {
+      return BinaryWriter.f32
+    }
+    else if (encoding === 'f64') {
+      return BinaryWriter.f64
+    }
     else if (encoding === 'string') {
       return BinaryWriter.string
     }
@@ -238,16 +274,10 @@ export class BinaryWriter {
     }
   }
 
-
-
-
-
-
   public finalize(): Uint8Array {
     this._buf = allocUnsafe(this.totalSize);
     this._writes()
     return this._buf;
-
   }
 }
 
@@ -339,6 +369,35 @@ export class BinaryReader {
     return toBigIntLE(buf)
   }
 
+
+  f32(): number {
+    return BinaryReader.f32(this)
+  }
+
+  static f32(reader: BinaryReader): number {
+    const value = readFloatLE(reader._buf, reader._offset)
+    reader._offset += 4;
+    if (Number.isNaN(value)) {
+      throw new BorshError("Recieved NaN reading f32")
+    }
+    return value;
+  }
+
+
+  f64(): number {
+    return BinaryReader.f64(this)
+  }
+
+  static f64(reader: BinaryReader): number {
+    const value = readDoubleLE(reader._buf, reader._offset)
+    reader._offset += 8;
+    if (Number.isNaN(value)) {
+      throw new BorshError("Recieved NaN reading f64")
+    }
+    return value;
+  }
+
+
   string(): string {
     return BinaryReader.string(this);
   }
@@ -394,6 +453,12 @@ export class BinaryReader {
     }
     else if (encoding === 'bool') {
       return BinaryReader.bool
+    }
+    else if (encoding === 'f32') {
+      return BinaryReader.f32
+    }
+    else if (encoding === 'f64') {
+      return BinaryReader.f64
     }
     else {
       throw new Error("Unsupported encoding: " + encoding)

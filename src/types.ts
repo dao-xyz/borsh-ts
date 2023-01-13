@@ -46,9 +46,12 @@ export type IntegerType =
   | "u256"
   | "u512"
 
+export type FloatType = 'f32' | 'f64';
+
 export type PrimitiveType = "bool"
   | "string"
   | IntegerType
+  | FloatType
 
 export type FieldType =
   PrimitiveType

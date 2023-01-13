@@ -574,6 +574,91 @@ describe("number", () => {
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
   });
+  describe("f32", () => {
+    class Struct {
+      @field({ type: "f32" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    test("f32 decimal", () => {
+      const instance = new Struct(3.123);
+      const buf = serialize(instance);
+      expect(new Uint8Array(buf)).toEqual(new Uint8Array([59, 223, 71, 64]));
+
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(3.122999906539917);
+    });
+
+    test("f32 min", () => {
+      const instance = new Struct(-3.40282347e38);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(-3.4028234663852886e38);
+    });
+    test("f32 max", () => {
+      const instance = new Struct(3.40282347e38);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(3.4028234663852886e38);
+    });
+
+    test("f32 nan ser", () => {
+      expect(() => serialize(new Struct(Number.NaN))).toThrowError(BorshError);
+    });
+
+    test("f32 nan der", () => {
+      expect(() =>
+        deserialize(new Uint8Array([0, 0, 192, 127]), Struct)
+      ).toThrowError(BorshError);
+    });
+  });
+
+  describe("f64", () => {
+    class Struct {
+      @field({ type: "f64" })
+      public a: number;
+
+      constructor(a: number) {
+        this.a = a;
+      }
+    }
+    test("f64 decimal", () => {
+      const instance = new Struct(3.123);
+      const buf = serialize(instance);
+      expect(new Uint8Array(buf)).toEqual(
+        new Uint8Array([150, 67, 139, 108, 231, 251, 8, 64])
+      );
+
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(3.123);
+    });
+
+    test("f64 min", () => {
+      const instance = new Struct(-1.7976931348623157e308);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(-1.7976931348623157e308);
+    });
+    test("f64 max", () => {
+      const instance = new Struct(1.7976931348623157e308);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(1.7976931348623157e308);
+    });
+
+    test("f64 nan ser", () => {
+      expect(() => serialize(new Struct(Number.NaN))).toThrowError(BorshError);
+    });
+
+    test("f64 nan der", () => {
+      expect(() =>
+        deserialize(new Uint8Array([0, 0, 192, 127]), Struct)
+      ).toThrowError(BorshError);
+    });
+  });
 });
 describe("enum", () => {
   test("enum base", () => {
