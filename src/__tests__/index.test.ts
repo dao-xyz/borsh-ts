@@ -697,7 +697,7 @@ describe("enum", () => {
 
   test("empty", () => {
     @variant(1)
-    class TestEnum { }
+    class TestEnum {}
     const instance = new TestEnum();
     validate(TestEnum);
     const buf = serialize(instance);
@@ -727,7 +727,7 @@ describe("enum", () => {
   });
 
   test("enum field serialization/deserialization", () => {
-    class Super { }
+    class Super {}
 
     @variant(0)
     class Enum0 extends Super {
@@ -775,7 +775,7 @@ describe("enum", () => {
   });
 
   test("extended enum top variants", () => {
-    class SuperSuper { }
+    class SuperSuper {}
 
     class Super extends SuperSuper {
       constructor() {
@@ -830,7 +830,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants", () => {
     @variant(1)
-    class SuperSuper { }
+    class SuperSuper {}
 
     @variant(2)
     class Super extends SuperSuper {
@@ -928,7 +928,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, deserialization target does not matter", () => {
     @variant(1)
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Clazz extends Super {
@@ -944,7 +944,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, serialization target does matter for fields", () => {
     @variant(0)
-    class Super { }
+    class Super {}
 
     @variant(0)
     class ClazzA extends Super {
@@ -962,7 +962,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzA })
       property: ClazzA;
-      constructor() { }
+      constructor() {}
     }
 
     const s = new Struct();
@@ -973,7 +973,7 @@ describe("enum", () => {
 
   test("extended enum inheritance variants, deserialization target does matter for fields", () => {
     @variant(0)
-    class Super { }
+    class Super {}
 
     @variant(0)
     class ClazzA extends Super {
@@ -991,7 +991,7 @@ describe("enum", () => {
     class Struct {
       @field({ type: ClazzB })
       property: ClazzB;
-      constructor() { }
+      constructor() {}
     }
     // we try to deserializ [0,0] into Struct, which shouldnot be possible since property is instance of ClazzB
     expect(() =>
@@ -1001,7 +1001,7 @@ describe("enum", () => {
 
   test("extended enum inheritance and field value conflict is resolved", () => {
     @variant(1)
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Clazz extends Super {
@@ -1024,7 +1024,7 @@ describe("enum", () => {
         this.number = number;
       }
     }
-    class AA extends A { }
+    class AA extends A {}
     abstract class B {
       @field({ type: A })
       public a: A;
@@ -1032,14 +1032,14 @@ describe("enum", () => {
         this.a = a;
       }
     }
-    class BB extends B { }
+    class BB extends B {}
     const b = new BB(new AA(123));
 
     expect(deserialize(serialize(b), B).a.number).toEqual(123);
   });
 
   test("inheritance without variant", () => {
-    class Super { }
+    class Super {}
     class A extends Super {
       @field({ type: "u8" })
       public a: number;
@@ -1065,7 +1065,7 @@ describe("enum", () => {
       }
     }
     @variant(1)
-    class C2 extends B { }
+    class C2 extends B {}
 
     validate(Super);
 
@@ -1079,7 +1079,7 @@ describe("enum", () => {
   });
 
   test("wrapped enum", () => {
-    class Super { }
+    class Super {}
 
     @variant(2)
     class Enum2 extends Super {
@@ -1112,7 +1112,7 @@ describe("enum", () => {
   });
 
   test("enum variant array", () => {
-    class Super { }
+    class Super {}
 
     @variant([1, 2, 3])
     class Enum0 extends Super {
@@ -1166,10 +1166,10 @@ describe("enum", () => {
     }
 
     @variant("🦍")
-    class Gorilla extends Ape { }
+    class Gorilla extends Ape {}
 
     @variant("🦧")
-    class Orangutan extends Ape { }
+    class Orangutan extends Ape {}
 
     class HighCouncil {
       @field({ type: vec(Ape) })
@@ -1558,10 +1558,10 @@ describe("order", () => {
 describe("discriminator", () => {
   it("can resolve", () => {
     @variant([1, 2])
-    class A { }
-    class B extends A { }
+    class A {}
+    class B extends A {}
     @variant(3)
-    class C extends B { }
+    class C extends B {}
 
     @variant("abc")
     class D extends C {
@@ -1581,7 +1581,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A { }
+    class B extends A {}
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 
@@ -1591,7 +1591,7 @@ describe("discriminator", () => {
       string: string = "string";
     }
     @variant(3)
-    class B extends A { }
+    class B extends A {}
     expect(() => getDiscriminator(B)).toThrowError(BorshError);
   });
 });
@@ -1618,7 +1618,7 @@ describe("Validation", () => {
 
   test("undefined struct error", () => {
     class Value {
-      constructor() { }
+      constructor() {}
     }
 
     class Container {
@@ -1645,7 +1645,7 @@ describe("Validation", () => {
 
   test("error for non optimized code", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     class A extends Super {
@@ -1682,14 +1682,14 @@ describe("Validation", () => {
 
   test("valid dependency deep", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     @variant(0)
-    class A extends Super { }
+    class A extends Super {}
 
     @variant(1)
-    class B extends A { }
+    class B extends A {}
 
     class Clazz {
       @field({ type: Super })
@@ -1708,14 +1708,14 @@ describe("Validation", () => {
 
   test("invalid dependency runtime", () => {
     class Super {
-      constructor() { }
+      constructor() {}
     }
 
     @variant(0)
-    class A extends Super { }
+    class A extends Super {}
 
     @variant(1)
-    class Other { }
+    class Other {}
 
     class Clazz {
       @field({ type: Super })
@@ -1733,7 +1733,7 @@ describe("Validation", () => {
 
   test("error for non optimized code on deserialization", () => {
     class TestStruct {
-      constructor() { }
+      constructor() {}
     }
 
     class A extends TestStruct {
@@ -1753,7 +1753,7 @@ describe("Validation", () => {
   test("variant conflict, indices", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() { }
+        constructor() {}
       }
       @variant([0, 1, 2]) // Same as B
       class A extends TestStruct {
@@ -1776,7 +1776,7 @@ describe("Validation", () => {
   test("variant conflict, indices length", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() { }
+        constructor() {}
       }
       @variant([0, 1]) // Same as B
       class A extends TestStruct {
@@ -1799,7 +1799,7 @@ describe("Validation", () => {
   test("variant conflict, indices deep inheritance", () => {
     const classDef = () => {
       class TestStructSuper {
-        constructor() { }
+        constructor() {}
       }
       class TestStruct extends TestStructSuper {
         constructor() {
@@ -1827,7 +1827,7 @@ describe("Validation", () => {
   test("variant conflict, index", () => {
     const classDef = () => {
       class TestStruct {
-        constructor() { }
+        constructor() {}
       }
       @variant(0) // Same as B
       class A extends TestStruct {
