@@ -327,9 +327,9 @@ validate([TestStruct])
 | `u128` integer        | `bigint`            |
 | `u256` integer        | `bigint`            |
 | `u512` integer        | `bigint`            |
-| `f32` float           | N/A                 |
-| `f64` float           | N/A                 |
-| fixed-size byte array | `Uint8Array`        |
+| `f32` float           | `number`            |
+| `f64` float           | `number`            |
+| byte arrays           | `Uint8Array`        |
 | UTF-8 string          | `string`            |
 | option                | `undefined` or type |
 | map                   | N/A                 |
