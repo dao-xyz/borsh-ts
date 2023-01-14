@@ -1,0 +1,2 @@
+syntax = "proto3";
+message Message { uint64 age = 1; }

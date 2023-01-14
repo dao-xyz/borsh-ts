@@ -22,7 +22,7 @@ export function writeBufferLEBigInt(num: bigint | number, width: number, buffer:
 }
 
 export function writeUInt32LE(value: number, buf: Uint8Array, offset: number) {
-    checkInt(value, 0, 0xffffffff, 1);
+    checkInt(value, 0, 0xffffffff, 3);
     buf[offset] = value;
     value = value >>> 8;
     buf[offset + 1] = value;
@@ -37,6 +37,26 @@ export function writeUInt16LE(value: number, buf: Uint8Array, offset: number) {
     checkInt(value, 0, 0xffff, 1);
     buf[offset] = value;
     buf[offset + 1] = (value >>> 8);
+}
+
+export const writeBigUint64Le = (bigIntOrNumber: bigint | number, buf: Uint8Array, offset: number) => {
+    checkInt(bigIntOrNumber, 0n, 0xffffffffffffffffn, 7);
+    const value = typeof bigIntOrNumber === 'bigint' ? bigIntOrNumber : BigInt(bigIntOrNumber);
+    let lo = Number(value & 0xffffffffn);
+    buf[offset] = lo;
+    lo = lo >> 8;
+    buf[offset + 1] = lo;
+    lo = lo >> 8;
+    buf[offset + 2] = lo;
+    buf[offset + 3] = lo >> 8;
+    let hi = Number(value >> 32n & 0xffffffffn);
+    buf[offset + 4] = hi;
+    hi = hi >> 8;
+    buf[offset + 5] = hi;
+    hi = hi >> 8;
+    buf[offset + 6] = hi;
+    buf[offset + 7] = hi >> 8;
+    return offset + 8;
 }
 
 export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
@@ -94,7 +114,7 @@ export const readUInt16LE = (buffer: Uint8Array, offset: number) => {
 
 
 
-export const checkInt = (value: number, min: number | bigint, max: number | bigint, byteLength: number) => {
+export const checkInt = (value: number | bigint, min: number | bigint, max: number | bigint, byteLength: number) => {
     if (value > max || value < min) {
         const n = typeof min === 'bigint' ? 'n' : '';
         let range;

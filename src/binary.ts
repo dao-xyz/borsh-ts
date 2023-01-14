@@ -1,4 +1,4 @@
-import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt } from './bigint.js';
+import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt, writeBigUint64Le } from './bigint.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
 import { PrimitiveType, SmallIntegerType } from './types.js';
@@ -80,7 +80,7 @@ export class BinaryWriter {
   public static u64(value: number | bigint, writer: BinaryWriter) {
     let offset = writer.totalSize;
     const last = writer._writes;
-    writer._writes = () => { last(); writeBufferLEBigInt(value, 8, writer._buf, offset) }
+    writer._writes = () => { last(); writeBigUint64Le(value, writer._buf, offset) }
     writer.totalSize += 8;
   }
 
