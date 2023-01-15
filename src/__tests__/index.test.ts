@@ -415,11 +415,11 @@ describe("number", () => {
         this.a = a;
       }
     }
-    const instance = new Struct(3);
+    const instance = new Struct(300);
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 0]));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([44, 1]));
     const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(3);
+    expect(deserialized.a).toEqual(300);
   });
 
   test("u32", () => {
@@ -437,56 +437,47 @@ describe("number", () => {
     expect(deserialized.a).toEqual(4294967295);
   });
 
-  test("u64 is le", () => {
-    class Struct {
-      @field({ type: "u64" })
-      public a: bigint;
-
-      constructor(a: bigint) {
-        this.a = a;
-      }
-    }
-    const instance = new Struct(BigInt(1000));
-    const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(
-      new Uint8Array([232, 3, ...new Array(6).fill(0)])
-    );
-    const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(BigInt(1000));
-  });
-
-  test("u64 with number", () => {
+  describe("u64", () => {
     class Struct {
       @field({ type: "u64" })
       public a: bigint | number;
 
-      constructor(a: number) {
+      constructor(a: number | bigint) {
         this.a = a;
       }
     }
-    let date = +new Date();
-    const instance = new Struct(date);
-    const buf = serialize(instance);
-    const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(BigInt(date));
+    test("u64 is le", () => {
+      const instance = new Struct(BigInt(1000));
+      const buf = serialize(instance);
+      expect(new Uint8Array(buf)).toEqual(
+        new Uint8Array([232, 3, ...new Array(6).fill(0)])
+      );
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(BigInt(1000));
+    });
+
+    test("u64 with number", () => {
+      let date = +new Date();
+      const instance = new Struct(date);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(BigInt(date));
+    });
+    test("u64 large", () => {
+      const n = 18446744073709515n;
+      const instance = new Struct(n);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(n);
+    });
+    test("u64 max", () => {
+      const n = 18446744073709551615n;
+      const instance = new Struct(n);
+      const buf = serialize(instance);
+      const deserialized = deserialize(buf, Struct);
+      expect(deserialized.a).toEqual(n);
+    });
   });
-
-  test("u64 max", () => {
-    class Struct {
-      @field({ type: "u64" })
-      public a: bigint;
-
-      constructor(a: bigint) {
-        this.a = a;
-      }
-    }
-    const n = 18446744073709551615n;
-    const instance = new Struct(n);
-    const buf = serialize(instance);
-    const deserialized = deserialize(buf, Struct);
-    expect(deserialized.a).toEqual(n);
-  });
-
   test("u128 max", () => {
     class Struct {
       @field({ type: "u128" })
@@ -502,7 +493,6 @@ describe("number", () => {
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
   });
-
   test("u128 is le", () => {
     class Struct {
       @field({ type: "u128" })

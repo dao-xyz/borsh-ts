@@ -3,11 +3,15 @@ import B from 'benchmark'
 import protobuf from "protobufjs";
 
 // Run with "node --loader ts-node/esm ./benchmark/u64.ts"
+
+
+// This benchmark is not that good since protobufjs convert bigints into LongBit format rather than bigint on deserialization
+
 /*
-* borsh bigint x 4,188,537 ops/sec ±0.37% (394 runs sampled)
-* protobujs bigint x 7,031,425 ops/sec ±0.26% (396 runs sampled)
-* borsh number x 4,112,788 ops/sec ±0.23% (396 runs sampled)
-* protobujs number x 5,016,302 ops/sec ±0.09% (396 runs sampled)
+* borsh bigint x 5,326,970 ops/sec ±0.37% (395 runs sampled)
+* protobujs bigint x 6,904,183 ops/sec ±0.42% (392 runs sampled)
+* borsh number x 6,350,140 ops/sec ±0.30% (394 runs sampled)
+* protobujs number x 5,152,453 ops/sec ±0.41% (394 runs sampled)
 */
 
 function getRandomInt(max: number) {

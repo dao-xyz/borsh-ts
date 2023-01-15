@@ -24,12 +24,9 @@ export function writeBufferLEBigInt(num: bigint | number, width: number, buffer:
 export function writeUInt32LE(value: number, buf: Uint8Array, offset: number) {
     checkInt(value, 0, 0xffffffff, 3);
     buf[offset] = value;
-    value = value >>> 8;
-    buf[offset + 1] = value;
-    value = value >>> 8;
-    buf[offset + 2] = value;
-    value = value >>> 8;
-    buf[offset + 3] = value;
+    buf[offset + 1] = value >>> 8;
+    buf[offset + 2] = value >>> 16;
+    buf[offset + 3] = value >>> 24;
 }
 
 
@@ -40,23 +37,43 @@ export function writeUInt16LE(value: number, buf: Uint8Array, offset: number) {
 }
 
 export const writeBigUint64Le = (bigIntOrNumber: bigint | number, buf: Uint8Array, offset: number) => {
-    checkInt(bigIntOrNumber, 0n, 0xffffffffffffffffn, 7);
-    const value = typeof bigIntOrNumber === 'bigint' ? bigIntOrNumber : BigInt(bigIntOrNumber);
-    let lo = Number(value & 0xffffffffn);
+    let lo, hi;
+    if (typeof bigIntOrNumber === 'bigint') {
+        if (bigIntOrNumber <= Number.MAX_SAFE_INTEGER) {
+            if (bigIntOrNumber < 0) {
+                throw new Error("u64 value can not negative, got " + bigIntOrNumber)
+            }
+            bigIntOrNumber = Number(bigIntOrNumber)
+            lo = bigIntOrNumber >>> 0;
+            hi = (bigIntOrNumber - lo) / 4294967296;
+        }
+        else {
+            if (bigIntOrNumber > 18446744073709551615n) {
+                throw new Error("u64 value can exceed mav value got " + bigIntOrNumber)
+            }
+            lo = Number(bigIntOrNumber & 4294967295n);
+            hi = Number(bigIntOrNumber >> 32n & 4294967295n);
+        }
+
+    }
+    else {
+        if (bigIntOrNumber < 0) {
+            throw new Error("u64 value can not negative, got " + bigIntOrNumber)
+        }
+        // We don't need upper bound check because number can not exceed 18446744073709551615
+        lo = bigIntOrNumber >>> 0;
+        hi = (bigIntOrNumber - lo) / 4294967296;
+    }
+
     buf[offset] = lo;
-    lo = lo >> 8;
-    buf[offset + 1] = lo;
-    lo = lo >> 8;
-    buf[offset + 2] = lo;
-    buf[offset + 3] = lo >> 8;
-    let hi = Number(value >> 32n & 0xffffffffn);
+    buf[offset + 1] = lo >>> 8;
+    buf[offset + 2] = lo >>> 16;
+    buf[offset + 3] = lo >>> 24;
     buf[offset + 4] = hi;
-    hi = hi >> 8;
-    buf[offset + 5] = hi;
-    hi = hi >> 8;
-    buf[offset + 6] = hi;
-    buf[offset + 7] = hi >> 8;
-    return offset + 8;
+    buf[offset + 5] = hi >>> 8;
+    buf[offset + 6] = hi >>> 16;
+    buf[offset + 7] = hi >>> 24;
+
 }
 
 export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
@@ -65,17 +82,12 @@ export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
     if (first === undefined || last === undefined)
         throw new Error('Out of bounds');
 
-    const lo = first +
-        buf[offset + 1] * 2 ** 8 +
-        buf[offset + 2] * 2 ** 16 +
-        buf[offset + 3] * 2 ** 24;
-
-    const hi = buf[offset + 4] +
-        buf[offset + 5] * 2 ** 8 +
-        buf[offset + 6] * 2 ** 16 +
-        last * 2 ** 24;
-
-    return BigInt(lo) + (BigInt(hi) << 32n);
+    let lo = (first | buf[offset + 1] << 8 | buf[offset + 2] << 16 | buf[offset + 3] << 24) >>> 0;
+    let hi = (buf[offset + 4] | buf[offset + 5] << 8 | buf[offset + 6] << 16 | last << 24) >>> 0;
+    if (hi > 0) {
+        return BigInt(lo) + (BigInt(hi) << 32n);
+    }
+    return BigInt(lo)
 }
 
 export function readUIntLE(buf: Uint8Array, offset: number, width: number): bigint {
