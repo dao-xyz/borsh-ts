@@ -8,10 +8,10 @@ import protobuf from "protobufjs";
 // This benchmark is not that good since protobufjs convert bigints into LongBit format rather than bigint on deserialization
 
 /*
-* borsh bigint x 5,326,970 ops/sec ±0.37% (395 runs sampled)
-* protobujs bigint x 6,904,183 ops/sec ±0.42% (392 runs sampled)
-* borsh number x 6,350,140 ops/sec ±0.30% (394 runs sampled)
-* protobujs number x 5,152,453 ops/sec ±0.41% (394 runs sampled)
+* borsh bigint x 5,385,093 ops/sec ±0.44% (389 runs sampled)
+* protobujs bigint x 7,022,500 ops/sec ±0.53% (393 runs sampled)
+* borsh number x 6,124,037 ops/sec ±0.42% (393 runs sampled)
+* protobujs number x 4,639,581 ops/sec ±0.35% (394 runs sampled)
 */
 
 function getRandomInt(max: number) {

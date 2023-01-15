@@ -57,7 +57,7 @@ export const writeBigUint64Le = (bigIntOrNumber: bigint | number, buf: Uint8Arra
 
     }
     else {
-        if (bigIntOrNumber < 0) {
+        if (bigIntOrNumber < 0 || bigIntOrNumber > 18446744073709551615n) {
             throw new Error("u64 value can not negative, got " + bigIntOrNumber)
         }
         // We don't need upper bound check because number can not exceed 18446744073709551615
