@@ -1,12 +1,11 @@
-function arrayToHex(arr: Uint8Array): string {
-    return [...new Uint8Array(arr)]
+function arrayToHex(arr: Uint8Array, reverse: boolean = false): string {
+    return [...(reverse ? new Uint8Array(arr).reverse() : new Uint8Array(arr))]
         .map(b => b.toString(16).padStart(2, "0"))
         .join("");
 }
 
 export function toBigIntLE(buf: Uint8Array): bigint {
-    const reversed = buf.reverse();
-    const hex = arrayToHex(reversed);
+    const hex = arrayToHex(buf, true);
     if (hex.length === 0) {
         return BigInt(0);
     }
@@ -91,8 +90,7 @@ export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
 }
 
 export function readUIntLE(buf: Uint8Array, offset: number, width: number): bigint {
-    const reversed = buf.slice(offset, offset + width).reverse();
-    const hex = arrayToHex(reversed);
+    const hex = arrayToHex(buf.subarray(offset, offset + width), true);
     if (hex.length === 0) {
         return BigInt(0);
     }

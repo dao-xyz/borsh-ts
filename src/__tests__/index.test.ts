@@ -251,6 +251,46 @@ describe("arrays", () => {
     expect(new Uint8Array(deserialized.a)).toEqual(new Uint8Array([1, 2, 3]));
   });
 
+  test("byte array should deserialize zero-copy from Uint8array", () => {
+    class TestStruct {
+      @field({ type: fixedArray("u8", 3) })
+      public a: Uint8Array | number[];
+
+      constructor(properties?: { a: number[] }) {
+        if (properties) {
+          this.a = properties.a;
+        }
+      }
+    }
+
+    validate(TestStruct);
+    const buf = new Uint8Array(serialize(new TestStruct({ a: [1, 2, 3] })));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
+    deserialized.a[0] = 123;
+    expect(buf[0]).toEqual(123);
+  });
+
+  test("byte array should deserialize zero-copy from Buffer", () => {
+    class TestStruct {
+      @field({ type: fixedArray("u8", 3) })
+      public a: Uint8Array | number[];
+
+      constructor(properties?: { a: number[] }) {
+        if (properties) {
+          this.a = properties.a;
+        }
+      }
+    }
+
+    validate(TestStruct);
+    const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1, 2, 3]));
+    const deserialized = deserialize(buf, TestStruct);
+    deserialized.a[0] = 123;
+    expect(buf[0]).toEqual(123);
+  });
+
   test("fixed array wrong length serialize", () => {
     class TestStruct {
       @field({ type: fixedArray("u8", 3) })
@@ -540,11 +580,37 @@ describe("number", () => {
     const n = BigInt(123);
     const instance = new Struct(n);
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(
-      new Uint8Array([123, ...new Array(31).fill(0)])
-    );
+    const serializedExpected = new Uint8Array([123, ...new Array(31).fill(0)]);
+
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
+
+    // check that the original array has not been modified
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
+  });
+
+  test("u256 with Uin8array", () => {
+    class Struct {
+      @field({ type: "u256" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const n = BigInt(123);
+    const instance = new Struct(n);
+    const buf = new Uint8Array(serialize(instance));
+
+    const serializedExpected = new Uint8Array([123, ...new Array(31).fill(0)]);
+
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(n);
+
+    // check that the original array has not been modified
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
   });
 
   test("u512 is le", () => {
@@ -558,11 +624,33 @@ describe("number", () => {
     }
     const instance = new Struct(BigInt(3));
     const buf = serialize(instance);
-    expect(new Uint8Array(buf)).toEqual(
-      new Uint8Array([3, ...new Array(63).fill(0)])
-    );
+    const serializedExpected = new Uint8Array([3, ...new Array(63).fill(0)]);
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(BigInt(3));
+
+    // check that the original array has not been modified
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
+  });
+
+  test("u512 with 8int8array", () => {
+    class Struct {
+      @field({ type: "u512" })
+      public a: bigint;
+
+      constructor(a: bigint) {
+        this.a = a;
+      }
+    }
+    const instance = new Struct(BigInt(3));
+    const buf = new Uint8Array(serialize(instance));
+    const serializedExpected = new Uint8Array([3, ...new Array(63).fill(0)]);
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
+    const deserialized = deserialize(buf, Struct);
+    expect(deserialized.a).toEqual(BigInt(3));
+
+    // check that the original array has not been modified
+    expect(new Uint8Array(buf)).toEqual(serializedExpected);
   });
 
   test("u512 max", () => {
