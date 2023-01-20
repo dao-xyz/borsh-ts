@@ -188,7 +188,7 @@ class TestStruct {
 
 ```typescript
 class TestStruct {
-  @field({ type: vec('32') })
+  @field({ type: vec('u32') })
   public vec: number[];
 }
 ```
