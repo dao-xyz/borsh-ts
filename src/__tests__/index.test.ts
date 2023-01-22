@@ -634,7 +634,7 @@ describe("number", () => {
     expect(new Uint8Array(buf)).toEqual(serializedExpected);
   });
 
-  test("u512 with 8int8array", () => {
+  test("u512 with Uint8array", () => {
     class Struct {
       @field({ type: "u512" })
       public a: bigint;
