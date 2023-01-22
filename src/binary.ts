@@ -12,6 +12,25 @@ const allocUnsafeFn = (): (len: number) => Uint8Array => {
 }
 const allocUnsafe = allocUnsafeFn();
 
+const writeStringBufferFnFn: () => ((len: number) => (string: string, buf: Uint8Array, offset: number) => void) = () => {
+  if ((globalThis as any).Buffer) {
+    return (length: number) => {
+      if (length < 48)
+        return utf8.write
+      return (string: string, buf: Uint8Array, offset: number) => (buf as any).write(string, offset)
+    }
+  }
+  return () => utf8.write
+}
+const writeStringBufferFn = writeStringBufferFnFn()
+
+const stringLengthFn: () => ((str: string) => number) = () => {
+  if ((globalThis as any).Buffer) {
+    return ((globalThis as any).Buffer).byteLength
+  }
+  return utf8.length
+}
+
 
 export class BinaryWriter {
   _buf: Uint8Array;
@@ -20,7 +39,7 @@ export class BinaryWriter {
 
   public constructor() {
     this.totalSize = 0;
-    this._writes = () => { };
+    this._writes = () => { this._buf = allocUnsafe(this.totalSize) };
   }
 
   public bool(value: boolean) {
@@ -155,13 +174,13 @@ export class BinaryWriter {
   }
 
   public static string(str: string, writer: BinaryWriter) {
-    const len = utf8.length(str);
+    const len = stringLengthFn()(str);
     let offset = writer.totalSize;
     const last = writer._writes;
     writer._writes = () => {
       last();
-      writeUInt32LE(len, writer._buf, offset)
-      utf8.write(str, writer._buf, offset + 4);
+      writeUInt32LE(len, writer._buf, offset);
+      writeStringBufferFn(len)(str, writer._buf, offset + 4);
     }
     writer.totalSize += 4 + len;
   }
@@ -173,7 +192,7 @@ export class BinaryWriter {
     writer._writes = () => {
       last();
       lengthWriter(len, writer._buf, offset)
-      utf8.write(str, writer._buf, offset + lengthSize);
+      writeStringBufferFn(len)(str, writer._buf, offset + lengthSize);
     }
     writer.totalSize += lengthSize + len;
   }
@@ -258,7 +277,6 @@ export class BinaryWriter {
     }
     else if (encoding === 'bool') {
       return BinaryWriter.bool
-
     }
     else if (encoding === 'f32') {
       return BinaryWriter.f32
@@ -275,7 +293,6 @@ export class BinaryWriter {
   }
 
   public finalize(): Uint8Array {
-    this._buf = allocUnsafe(this.totalSize);
     this._writes()
     return this._buf;
   }
@@ -414,6 +431,27 @@ export class BinaryReader {
     }
   }
 
+  static bufferString(reader: BinaryReader): string {
+    const len = reader.u32();
+    const end = reader._offset + len;
+    const string = (reader._buf as Buffer).toString(undefined, reader._offset, end);
+    reader._offset = end;
+    return string;
+  }
+
+
+  static bufferStringCustom(reader: BinaryReader, length: (reader: BinaryReader) => number): string {
+    const len = length(reader);
+    try {
+      const end = reader._offset + len;
+      const string = (reader._buf as Buffer).toString(undefined, reader._offset, end);
+      reader._offset = end;
+      return string;
+    } catch (e) {
+      throw new BorshError(`Error decoding UTF-8 string: ${e}`);
+    }
+  }
+
   static stringCustom(reader: BinaryReader, length: (reader: BinaryReader) => number): string {
     const len = length(reader);
     try {
@@ -426,7 +464,7 @@ export class BinaryReader {
     }
   }
 
-  public static read(encoding: PrimitiveType): ((reader: BinaryReader) => number) | ((reader: BinaryReader) => bigint) | ((reader: BinaryReader) => boolean) | ((reader: BinaryReader) => string) {
+  public static read(encoding: PrimitiveType, fromBuffer?: boolean): ((reader: BinaryReader) => number) | ((reader: BinaryReader) => bigint) | ((reader: BinaryReader) => boolean) | ((reader: BinaryReader) => string) {
     if (encoding === 'u8') {
       return BinaryReader.u8
     }
@@ -449,7 +487,7 @@ export class BinaryReader {
       return BinaryReader.u512
     }
     else if (encoding === 'string') {
-      return BinaryReader.string
+      return fromBuffer ? BinaryReader.bufferString : BinaryReader.string
     }
     else if (encoding === 'bool') {
       return BinaryReader.bool

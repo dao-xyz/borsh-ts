@@ -24,10 +24,12 @@ import { BinaryWriter, BinaryReader } from "./binary.js";
  * This function or handle, is stored on the prototypes so we can easily access it when we want to serialize/deserialize
  */
 
-const MAX_PROTOTYPE_SEARCH = 500;
+// we will store some metadata about the schemas on the prototype. Prototype set get is faster if we use numbers (so we are going to use that here)
+const MAX_PROTOTYPE_SEARCH = 250;
+const PROTOTYPE_POLLUTION_CONTEXT_RANGE = 500;
 const PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET = 500;
-const PROTOTYPE_DEPENDENCY_HANDLER_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + MAX_PROTOTYPE_SEARCH;
-const PROTOTYPE_SCHEMA_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + MAX_PROTOTYPE_SEARCH * 2;
+const PROTOTYPE_DEPENDENCY_HANDLER_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + PROTOTYPE_POLLUTION_CONTEXT_RANGE;
+const PROTOTYPE_SCHEMA_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + PROTOTYPE_POLLUTION_CONTEXT_RANGE * 2;
 
 /**
  * Serialize an object with @field(...) or @variant(...) decorators
@@ -64,7 +66,8 @@ export function deserialize<T>(
 ): T {
   // buffer = intoUint8Array(buffer);
   const reader = new BinaryReader(buffer);
-  const result = deserializeStruct(classType)(reader, options);
+  let fromBuffer = buffer.constructor !== Uint8Array
+  const result = deserializeStruct(classType, fromBuffer)(reader, options);
   if (!options?.unchecked && reader._offset !== buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader._offset
@@ -263,10 +266,11 @@ function serializeStruct(
 function deserializeField(
   fieldName: string,
   fieldType: any,
+  fromBuffer: boolean
 ): (reader: BinaryReader, options: DeserializeStructOptions) => any {
   try {
     if (typeof fieldType === "string") {
-      return BinaryReader.read(fieldType as IntegerType)
+      return BinaryReader.read(fieldType as IntegerType, fromBuffer)
     }
 
     if (fieldType === Uint8Array) {
@@ -279,13 +283,13 @@ function deserializeField(
           return (reader) => reader.buffer(fieldType.length)
         }
         else {
-          const sizeHandle = BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number;
+          const sizeHandle = BinaryReader.read(fieldType.sizeEncoding, fromBuffer) as (reader: BinaryReader) => number;
           return (reader) => BinaryReader.uint8Array(reader, sizeHandle(reader))
         }
       }
       else {
-        let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number : (() => fieldType.length);
-        const fieldHandle = deserializeField(null, fieldType.elementType);
+        let sizeHandle = fieldType instanceof VecKind ? BinaryReader.read(fieldType.sizeEncoding, fromBuffer) as (reader: BinaryReader) => number : (() => fieldType.length);
+        const fieldHandle = deserializeField(null, fieldType.elementType, fromBuffer);
         return (reader, options) => {
           const len = sizeHandle(reader);
           let arr = new Array(len);
@@ -298,7 +302,9 @@ function deserializeField(
     }
 
     if (fieldType instanceof StringType) {
-      return (reader) => BinaryReader.stringCustom(reader, BinaryReader.read(fieldType.sizeEncoding) as (reader: BinaryReader) => number)
+      const sizeReader = BinaryReader.read(fieldType.sizeEncoding, fromBuffer) as (reader: BinaryReader) => number;
+
+      return fromBuffer ? (reader) => BinaryReader.bufferStringCustom(reader, sizeReader) : (reader) => BinaryReader.stringCustom(reader, sizeReader)
     }
 
     if (typeof fieldType["deserialize"] == "function") {
@@ -308,7 +314,9 @@ function deserializeField(
     if (fieldType instanceof OptionKind) {
       const fieldHandle = deserializeField(
         fieldName,
-        fieldType.elementType);
+        fieldType.elementType,
+        fromBuffer
+      );
       return (reader, options) => {
         return reader.u8() ? fieldHandle(
           reader,
@@ -316,7 +324,7 @@ function deserializeField(
         ) : undefined;
       }
     }
-    return deserializeStruct(fieldType)
+    return deserializeStruct(fieldType, fromBuffer)
 
   } catch (error) {
     if (error instanceof BorshError) {
@@ -325,10 +333,10 @@ function deserializeField(
     throw error;
   }
 }
-function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
+function deserializeStruct(targetClazz: any, fromBuffer: boolean): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
 
-  const handle = getCreateDeserializationHandle(targetClazz, 0);
-  return (reader: BinaryReader, options?: DeserializeStructOptions) => {
+  const handle = getCreateDeserializationHandle(targetClazz, 0, fromBuffer); // "compile time"
+  return (reader: BinaryReader, options?: DeserializeStructOptions) => { // runtime
     const result = handle({}, reader, options)
     if (!options?.unchecked && !(options as any)?.object && !checkClazzesCompatible(result.constructor, targetClazz)) {
       throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${result.constructor?.name} which are not compatible`);
@@ -339,11 +347,11 @@ function deserializeStruct(targetClazz: any): (reader: BinaryReader, options?: D
 }
 
 
-const getCreateDeserializationHandle = (clazz: any, offset: number): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => getDeserializationHandle(clazz, offset) || setDeserializationHandle(clazz, offset, createDeserializeStructHandle(clazz, offset))
-const getDeserializationHandle = (clazz: any, offset: number) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset]
-const setDeserializationHandle = (clazz: any, offset: number, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset] = handle;
+const getCreateDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => getDeserializationHandle(clazz, offset, fromBuffer) || setDeserializationHandle(clazz, offset, fromBuffer, createDeserializeStructHandle(clazz, offset, fromBuffer))
+const getDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset + (fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)]
+const setDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset + (fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)] = handle;
 
-const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
+const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number, fromBuffer: boolean): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
   let handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any | undefined = undefined;
   let endHandle = (result: any, reader: BinaryReader, options: DeserializeStructOptions) => {
     if ((options as any)?.object) {
@@ -380,6 +388,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
       const fieldHandle = deserializeField(
         field.key,
         field.type,
+        fromBuffer
       );
       if (prev) {
         handle = (result, reader: BinaryReader, options?: DeserializeStructOptions) => {
@@ -421,10 +430,10 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
         const dep = variantToDepndency[0];
         return (result, reader, options) => {
           handle && handle(result, reader, options)
-          return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+          return getCreateDeserializationHandle(dep[1], dep[2].offset, fromBuffer)(result, reader, options)
         }
       }
-      else throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: but no variants are used which makes deserialization undetermenistic`)
+      else throw new BorshError(`Failed to find class to deserialize to from ${currClazz.name}: but no variants are used which makes deserialization undeterministic`)
 
     }
 
@@ -437,7 +446,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
         let agg = reader.u8();
         for (const dep of variantToDepndency) {
           if (agg === dep[0]) {
-            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+            return getCreateDeserializationHandle(dep[1], dep[2].offset, fromBuffer)(result, reader, options)
           }
         }
       }
@@ -445,7 +454,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
         let variant = reader.string();
         for (const dep of variantToDepndency) {
           if (variant === dep[0]) {
-            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+            return getCreateDeserializationHandle(dep[1], dep[2].offset, fromBuffer)(result, reader, options)
           }
         }
       }
@@ -460,7 +469,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
           if (currentVariant.length === agg.length &&
             (currentVariant as number[]).every((value, index) => value === agg[index])) {
 
-            return getCreateDeserializationHandle(dep[1], dep[2].offset)(result, reader, options)
+            return getCreateDeserializationHandle(dep[1], dep[2].offset, fromBuffer)(result, reader, options)
           }
         }
       }
@@ -477,11 +486,11 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
         }
         else if (dependencies.size > 1) {
           const classes = [...dependencies.entries()].map(([c]) => c.name).join(', ')
-          throw new BorshError(`Multiple deserialization paths from ${currClazz.name} found: ${classes} but no matches the variant read from the buffer.`)
+          throw new BorshError(`Failed to find class to deserialize to from ${currClazz.name} found: ${classes} but no variant matches bytes read from the buffer.`)
         }
       }
       if (next != null) {
-        getCreateDeserializationHandle(next, nextOffset)(result, reader, options)
+        getCreateDeserializationHandle(next, nextOffset, fromBuffer)(result, reader, options)
 
       }
       else {
@@ -613,7 +622,7 @@ const getSubMostSchema = (ctor: Function): StructKind => {
 
 
 
-const getSchemasBottomUp = (ctor: Function): StructKind[] => {
+export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
 
   let last = undefined;
   let ret: StructKind[] = [];
