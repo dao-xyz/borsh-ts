@@ -9,7 +9,7 @@
 Borsh stands for _Binary Object Representation Serializer for Hashing_. It is meant to be used in security-critical projects as it prioritizes consistency,
 safety, speed, and comes with a strict specification.
 
-This implementation is performant, in fact, It slightly outperforms protobuf.js [benchmark 2](./benchmark/bench2.ts) (~20% faster), [benchmark 3](./benchmark/bench3.ts) (~15% faster)
+This implementation is performant, in fact, It slightly outperforms protobuf.js [benchmark 2](./benchmark/string-u32.ts) (~20% faster), [benchmark 3](./benchmark/string-u32-uint8array.ts) (~15% faster)
 
 ### How `borsh-ts` differs from `borsh-js`
 - Schema is defined using decorators rather than building a map. The schema is stored alongside the class behind the scenes so there is no longer need to pass it during serialization and deserialization. 
