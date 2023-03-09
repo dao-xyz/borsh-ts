@@ -32,14 +32,19 @@ const stringLengthFn: () => ((str: string) => number) = () => {
 }
 
 
+type ChainedWrite = (() => any) & { next?: ChainedWrite }
 export class BinaryWriter {
-  _buf: Uint8Array;
+
   totalSize: number;
-  _writes: () => any;
+
+  private _writes: ChainedWrite;
+  private _writesTail: ChainedWrite;
+  private _buf: Uint8Array;
 
   public constructor() {
     this.totalSize = 0;
-    this._writes = () => { this._buf = allocUnsafe(this.totalSize) };
+    this._writes = () => this._buf = allocUnsafe(this.totalSize);
+    this._writesTail = this._writes;
   }
 
   public bool(value: boolean) {
@@ -48,11 +53,7 @@ export class BinaryWriter {
 
   public static bool(value: boolean, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
-      writer._buf[offset] = value ? 1 : 0;
-    }
+    writer._writes = writer._writes.next = () => writer._buf[offset] = value ? 1 : 0
     writer.totalSize += 1;
 
   }
@@ -63,8 +64,7 @@ export class BinaryWriter {
   public static u8(value: number, writer: BinaryWriter) {
     checkInt(value, 0, 0xff, 1);
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); (writer._buf[offset] = value) };
+    writer._writes = writer._writes.next = () => writer._buf[offset] = value
     writer.totalSize += 1;
   }
 
@@ -74,8 +74,7 @@ export class BinaryWriter {
 
   public static u16(value: number, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeUInt16LE(value, writer._buf, offset) };
+    writer._writes = writer._writes.next = () => writeUInt16LE(value, writer._buf, offset);
     writer.totalSize += 2;
   }
 
@@ -85,8 +84,7 @@ export class BinaryWriter {
 
   public static u32(value: number, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeUInt32LE(value, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeUInt32LE(value, writer._buf, offset)
     writer.totalSize += 4;
 
   }
@@ -98,8 +96,7 @@ export class BinaryWriter {
 
   public static u64(value: number | bigint, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeBigUint64Le(value, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeBigUint64Le(value, writer._buf, offset)
     writer.totalSize += 8;
   }
 
@@ -109,8 +106,7 @@ export class BinaryWriter {
 
   public static u128(value: number | bigint, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeBufferLEBigInt(value, 16, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeBufferLEBigInt(value, 16, writer._buf, offset)
     writer.totalSize += 16;
 
   }
@@ -123,8 +119,7 @@ export class BinaryWriter {
   public static u256(value: number | bigint, writer: BinaryWriter) {
 
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeBufferLEBigInt(value, 32, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeBufferLEBigInt(value, 32, writer._buf, offset)
     writer.totalSize += 32;
 
   }
@@ -135,8 +130,7 @@ export class BinaryWriter {
 
   public static u512(value: number | bigint, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeBufferLEBigInt(value, 64, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeBufferLEBigInt(value, 64, writer._buf, offset)
     writer.totalSize += 64;
 
   }
@@ -150,8 +144,7 @@ export class BinaryWriter {
       throw new BorshError("NaN is not supported for f32")
     }
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeFloatLE(value, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeFloatLE(value, writer._buf, offset)
     writer.totalSize += 4;
   }
 
@@ -164,8 +157,7 @@ export class BinaryWriter {
       throw new BorshError("NaN is not supported for f64")
     }
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => { last(); writeDoubleLE(value, writer._buf, offset) }
+    writer._writes = writer._writes.next = () => writeDoubleLE(value, writer._buf, offset)
     writer.totalSize += 8;
   }
 
@@ -176,9 +168,7 @@ export class BinaryWriter {
   public static string(str: string, writer: BinaryWriter) {
     const len = stringLengthFn()(str);
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
+    writer._writes = writer._writes.next = () => {
       writeUInt32LE(len, writer._buf, offset);
       writeStringBufferFn(len)(str, writer._buf, offset + 4);
     }
@@ -188,12 +178,11 @@ export class BinaryWriter {
   public static stringCustom(str: string, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
     const len = utf8.length(str);
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
+    writer._writes = writer._writes.next = () => {
       lengthWriter(len, writer._buf, offset)
       writeStringBufferFn(len)(str, writer._buf, offset + lengthSize);
     }
+
     writer.totalSize += lengthSize + len;
   }
 
@@ -205,9 +194,7 @@ export class BinaryWriter {
 
   public static uint8Array(array: Uint8Array, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
+    writer._writes = writer._writes.next = () => {
       writeUInt32LE(array.length, writer._buf, offset)
       writer._buf.set(array, offset + 4);
     }
@@ -216,20 +203,17 @@ export class BinaryWriter {
 
   public static uint8ArrayCustom(array: Uint8Array, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
+    writer._writes = writer._writes.next = () => {
       lengthWriter(array.length, writer._buf, offset)
       writer._buf.set(array, offset + lengthSize);
     }
+
     writer.totalSize += array.length + lengthSize;
   }
 
   public static uint8ArrayFixed(array: Uint8Array, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    const last = writer._writes;
-    writer._writes = () => {
-      last();
+    writer._writes = writer._writes.next = () => {
       writer._buf.set(array, offset);
     }
     writer.totalSize += array.length;
@@ -293,7 +277,11 @@ export class BinaryWriter {
   }
 
   public finalize(): Uint8Array {
-    this._writes()
+    let current: ChainedWrite = this._writesTail;
+    while (current != null) {
+      current()
+      current = current.next
+    }
     return this._buf;
   }
 }
@@ -316,6 +304,9 @@ export class BinaryReader {
   static bool(reader: BinaryReader): boolean {
     const value = reader._buf[reader._offset];
     reader._offset += 1;
+    if (value !== 1 && value !== 0) {
+      throw new Error("Unexpected value for boolean: " + value + ". Expecting either 1 or 0 ")
+    }
     return value ? true : false;
   }
 
@@ -324,6 +315,10 @@ export class BinaryReader {
   }
 
   static u8(reader: BinaryReader): number {
+    if (reader._offset >= reader._buf.length) {
+      throw new Error("Reader out of bounds")
+    }
+
     const value = reader._buf[reader._offset];
     reader._offset += 1;
     return value;
@@ -378,9 +373,11 @@ export class BinaryReader {
     reader._offset += 32;
     return value
   }
+
   u512(): bigint {
     return BinaryReader.u512(this)
   }
+
   static u512(reader: BinaryReader): bigint {
     const buf = reader.buffer(64);
     return toBigIntLE(buf)
@@ -390,6 +387,7 @@ export class BinaryReader {
   f32(): number {
     return BinaryReader.f32(this)
   }
+
 
   static f32(reader: BinaryReader): number {
     const value = readFloatLE(reader._buf, reader._offset)
