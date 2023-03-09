@@ -71,7 +71,7 @@ export function deserialize<T>(
   if (!options?.unchecked && reader._offset !== buffer.length) {
     throw new BorshError(
       `Unexpected ${buffer.length - reader._offset
-      } bytes after deserialized data`
+      } bytes after deserialized data. This is most likely due to that you are deserializing into the wrong class`
     );
   }
   return result;
@@ -262,6 +262,7 @@ function serializeStruct(
   }
 }
 
+const MAX_ARRAY_SIZE_ALLOCATION = 1024 * 1024;
 
 function deserializeField(
   fieldName: string,
@@ -292,11 +293,20 @@ function deserializeField(
         const fieldHandle = deserializeField(null, fieldType.elementType, fromBuffer);
         return (reader, options) => {
           const len = sizeHandle(reader);
-          let arr = new Array(len);
-          for (let i = 0; i < len; i++) {
-            arr[i] = fieldHandle(reader, options);
+          if (len < MAX_ARRAY_SIZE_ALLOCATION) {
+            let arr = new Array(len);
+            for (let i = 0; i < len; i++) {
+              arr[i] = fieldHandle(reader, options);
+            }
+            return arr;
           }
-          return arr;
+          else {
+            let arr = new Array(MAX_ARRAY_SIZE_ALLOCATION);
+            for (let i = 0; i < len; i++) {
+              arr[i] = fieldHandle(reader, options);
+            }
+            return arr;
+          }
         }
       }
     }
@@ -318,7 +328,7 @@ function deserializeField(
         fromBuffer
       );
       return (reader, options) => {
-        return reader.u8() ? fieldHandle(
+        return reader.bool() ? fieldHandle(
           reader,
           options
         ) : undefined;
@@ -333,7 +343,7 @@ function deserializeField(
     throw error;
   }
 }
-function deserializeStruct(targetClazz: any, fromBuffer: boolean): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
+export function deserializeStruct(targetClazz: any, fromBuffer: boolean): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
 
   const handle = getCreateDeserializationHandle(targetClazz, 0, fromBuffer); // "compile time"
   return (reader: BinaryReader, options?: DeserializeStructOptions) => { // runtime
