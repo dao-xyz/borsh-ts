@@ -741,6 +741,11 @@ export function field(properties: SimpleField | CustomField<any>) {
 }
 
 /**
+ * Type alias for `field`
+ */
+export const borsh = field
+
+/**
  * @param clazzes
  * @param validate, run validation?
  * @returns Schema map
