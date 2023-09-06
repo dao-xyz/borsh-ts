@@ -75,6 +75,40 @@ export const writeBigUint64Le = (bigIntOrNumber: bigint | number, buf: Uint8Arra
 
 }
 
+export function hl(value: number) {
+    if (value === 0)
+        return [0, 0];
+    var sign = value < 0;
+    if (sign)
+        value = -value;
+    var lo = value >>> 0,
+        hi = (value - lo) / 4294967296 >>> 0;
+    if (sign) {
+        hi = ~hi >>> 0;
+        lo = ~lo >>> 0;
+        if (++lo > 4294967295) {
+            lo = 0;
+            if (++hi > 4294967295)
+                hi = 0;
+        }
+    }
+    return [hi, lo]
+}
+export function writeVarint64(val: number, buf: Uint8Array, pos: number) {
+    let [hi, lo] = hl(val);
+    while (hi) {
+        buf[pos++] = lo & 127 | 128;
+        lo = (lo >>> 7 | hi << 25) >>> 0;
+        hi >>>= 7;
+    }
+    while (lo > 127) {
+        buf[pos++] = lo & 127 | 128;
+        lo = lo >>> 7;
+    }
+    buf[pos++] = lo;
+}
+
+
 export const readBigUInt64LE = (buf: Uint8Array, offset: number) => {
     const first = buf[offset];
     const last = buf[offset + 7];
@@ -141,3 +175,5 @@ export const checkInt = (value: number | bigint, min: number | bigint, max: numb
         throw new Error("Out of range value: " + range + ", " + value);
     }
 }
+
+

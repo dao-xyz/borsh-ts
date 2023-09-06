@@ -1,8 +1,9 @@
-import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt, writeBigUint64Le } from './bigint.js';
+import { toBigIntLE, writeBufferLEBigInt, writeUInt32LE, readUInt32LE, readUInt16LE, writeUInt16LE, readBigUInt64LE, readUIntLE, checkInt, writeBigUint64Le } from './number.js';
 import { BorshError } from "./error.js";
 import utf8 from '@protobufjs/utf8';
-import { PrimitiveType, SmallIntegerType } from './types.js';
+import { PrimitiveType, SmallIntegerType, SmallUnsignedIntegerType } from './types.js';
 import { readFloatLE, writeFloatLE, readDoubleLE, writeDoubleLE } from '@protobufjs/float'
+import { writeVarint64 } from './number.js';
 
 const allocUnsafeFn = (): (len: number) => Uint8Array => {
   if ((globalThis as any).Buffer) {
@@ -35,14 +36,14 @@ const stringLengthFn: () => ((str: string) => number) = () => {
 type ChainedWrite = (() => any) & { next?: ChainedWrite }
 export class BinaryWriter {
 
-  totalSize: number;
+  totalSize: number = 0;
+  counter: number = 0;
 
   private _writes: ChainedWrite;
   private _writesTail: ChainedWrite;
   private _buf: Uint8Array;
 
   public constructor() {
-    this.totalSize = 0;
     this._writes = () => this._buf = allocUnsafe(this.totalSize);
     this._writesTail = this._writes;
   }
@@ -84,8 +85,22 @@ export class BinaryWriter {
 
   public static u32(value: number, writer: BinaryWriter) {
     let offset = writer.totalSize;
-    writer._writes = writer._writes.next = () => writeUInt32LE(value, writer._buf, offset)
+    let prev = writer._writes;
+    writer.counter += 1;
+    if (writer.counter > 100)
+      writer._writesTail = () => {
+        prev()
+        writeUInt32LE(value, writer._buf, offset)
+      }
+    else {
+      writer._writes = writer._writes.next = () => writeUInt32LE(value, writer._buf, offset)
+      //writer.counter = 0;
+    }
+    //   
     writer.totalSize += 4;
+
+    /*  writer._writes = writer._writes.next = () => writeUInt32LE(value, writer._buf, offset) 
+    */
 
   }
 
@@ -135,6 +150,46 @@ export class BinaryWriter {
 
   }
 
+  public static vu32(value: number, writer: BinaryWriter) {
+    let offset = writer.totalSize;
+    let len = (value = value >>> 0)
+      < 128 ? 1
+      : value < 16384 ? 2
+        : value < 2097152 ? 3
+          : value < 268435456 ? 4
+            : 5;
+    writer._writes = writer._writes.next = () => {
+      while (value > 127) {
+        writer._buf[offset++] = value & 127 | 128;
+        value >>>= 7;
+      }
+      writer._buf[offset] = value;
+    }
+    writer.totalSize += len;
+  }
+
+  vu32(value: number) {
+    return BinaryWriter.vu32(value, this)
+  }
+
+  static vi32(value: number, writer: BinaryWriter) {
+
+    if (value < 0) {
+      let offset = writer.totalSize;
+      writer._writes = writer._writes.next = () => writeVarint64(value, writer._buf, offset)
+      writer.totalSize += 10; // 10 bytes per spec
+    }
+    else {
+      return BinaryWriter.vu32(value, writer);
+    }
+  }
+  static vsi32(value: number, writer: BinaryWriter) {
+    return BinaryWriter.vu32((value << 1 ^ value >> 31) >>> 0, writer);
+  }
+  vsi32(value: number) {
+    return BinaryWriter.vsi32(value, this);
+  }
+
   public f32(value: number) {
     return BinaryWriter.f32(value, this)
   }
@@ -175,15 +230,14 @@ export class BinaryWriter {
     writer.totalSize += 4 + len;
   }
 
-  public static stringCustom(str: string, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
+  public static stringCustom(str: string, writer: BinaryWriter, lengthWriter: (len: number | bigint, writer: BinaryWriter) => void = BinaryWriter.u32) {
     const len = utf8.length(str);
+    lengthWriter(len, writer)
     let offset = writer.totalSize;
     writer._writes = writer._writes.next = () => {
-      lengthWriter(len, writer._buf, offset)
-      writeStringBufferFn(len)(str, writer._buf, offset + lengthSize);
+      writeStringBufferFn(len)(str, writer._buf, offset);
     }
-
-    writer.totalSize += lengthSize + len;
+    writer.totalSize += len;
   }
 
   public set(array: Uint8Array) {
@@ -208,14 +262,13 @@ export class BinaryWriter {
     writer.totalSize += array.length + 4;
   }
 
-  public static uint8ArrayCustom(array: Uint8Array, writer: BinaryWriter, lengthWriter: (len: number | bigint, buf: Uint8Array, offset: number) => void = writeUInt32LE, lengthSize = 4) {
+  public static uint8ArrayCustom(array: Uint8Array, writer: BinaryWriter, lengthWriter: (len: number | bigint, writer: BinaryWriter) => void) {
+    lengthWriter(array.length, writer);
     let offset = writer.totalSize;
     writer._writes = writer._writes.next = () => {
-      lengthWriter(array.length, writer._buf, offset)
-      writer._buf.set(array, offset + lengthSize);
+      writer._buf.set(array, offset);
     }
-
-    writer.totalSize += array.length + lengthSize;
+    writer.totalSize += array.length;
   }
 
   public static uint8ArrayFixed(array: Uint8Array, writer: BinaryWriter) {
@@ -228,15 +281,18 @@ export class BinaryWriter {
   }
 
 
-  public static smallNumberEncoding(encoding: SmallIntegerType): [((value: number, buf: Uint8Array, offset: number) => void), number] {
+  public static smallNumberEncoding(encoding: SmallUnsignedIntegerType): ((value: number, writer: BinaryWriter) => void) {
     if (encoding === 'u8') {
-      return [(value: number, buf: Uint8Array, offset: number) => buf[offset] = value as number, 1]
+      return BinaryWriter.u8
     }
     else if (encoding === 'u16') {
-      return [writeUInt16LE, 2]
+      return BinaryWriter.u16
     }
     else if (encoding === 'u32') {
-      return [writeUInt32LE, 4]
+      return BinaryWriter.u32
+    }
+    else if (encoding === 'vu32') {
+      return BinaryWriter.vu32
     }
     else {
       throw new Error("Unsupported encoding: " + encoding)
@@ -265,6 +321,15 @@ export class BinaryWriter {
     }
     else if (encoding === 'u512') {
       return BinaryWriter.u512
+    }
+    else if (encoding === 'vu32') {
+      return BinaryWriter.vu32
+    }
+    else if (encoding === 'vi32') {
+      return BinaryWriter.vi32
+    }
+    else if (encoding === 'vsi32') {
+      return BinaryWriter.vsi32
     }
     else if (encoding === 'bool') {
       return BinaryWriter.bool
@@ -390,6 +455,40 @@ export class BinaryReader {
     return toBigIntLE(buf)
   }
 
+  public static vu32(reader: BinaryReader) {
+    let value = (reader._buf[reader._offset] & 127) >>> 0; if (reader._buf[reader._offset++] < 128) return value;
+    value = (value | (reader._buf[reader._offset] & 127) << 7) >>> 0; if (reader._buf[reader._offset++] < 128) return value;
+    value = (value | (reader._buf[reader._offset] & 127) << 14) >>> 0; if (reader._buf[reader._offset++] < 128) return value;
+    value = (value | (reader._buf[reader._offset] & 127) << 21) >>> 0; if (reader._buf[reader._offset++] < 128) return value;
+    value = (value | (reader._buf[reader._offset] & 15) << 28) >>> 0; if (reader._buf[reader._offset++] < 128) return value;
+
+    if ((reader._offset += 5) > reader._buf.length) {
+      throw new Error('Out of bounds');
+    }
+    return value;
+  }
+
+  vu32() {
+    return BinaryReader.vu32(this);
+  }
+
+  static vi32(reader: BinaryReader) {
+    return reader.vu32() | 0
+  }
+
+  vi32() {
+    return BinaryReader.vi32(this);
+  }
+
+  static vsi32(reader: BinaryReader) {
+    var value = reader.vu32();
+    return value >>> 1 ^ -(value & 1) | 0;
+  }
+
+  vsi32() {
+    return BinaryReader.vsi32(this);
+  }
+
 
   f32(): number {
     return BinaryReader.f32(this)
@@ -508,6 +607,16 @@ export class BinaryReader {
     else if (encoding === 'u512') {
       return BinaryReader.u512
     }
+    else if (encoding === 'vu32') {
+      return BinaryReader.vu32
+    }
+    else if (encoding === 'vi32') {
+      return BinaryReader.vi32
+    }
+    else if (encoding === 'vsi32') {
+      return BinaryReader.vsi32
+    }
+
     else if (encoding === 'string') {
       return fromBuffer ? BinaryReader.bufferString : BinaryReader.string
     }

@@ -39,8 +39,16 @@ export type SmallIntegerType = "u8"
   | "u16"
   | "u32"
 
+export type SmallUnsignedIntegerType = "u8" | "u16" | "u32" | 'vu32'
+
+
+export type SmallVarintType = "vu32" | "vi32" | "vsi32"
+
+/* export type VarintType = SmallVarintType | 'vu64' | 'vi64' */
+
 export type IntegerType =
   SmallIntegerType
+  | SmallVarintType
   | "u64"
   | "u128"
   | "u256"
@@ -100,14 +108,14 @@ export const option = (type: FieldType): OptionKind => {
 };
 
 export class VecKind extends WrappedType {
-  sizeEncoding: SmallIntegerType
-  constructor(elementType: FieldType, sizeEncoding: SmallIntegerType) {
+  sizeEncoding: SmallUnsignedIntegerType
+  constructor(elementType: FieldType, sizeEncoding: SmallUnsignedIntegerType) {
     super(elementType)
     this.sizeEncoding = sizeEncoding;
   }
 }
 
-export const vec = (type: FieldType, sizeEncoding: SmallIntegerType = 'u32'): VecKind => {
+export const vec = (type: FieldType, sizeEncoding: SmallUnsignedIntegerType = 'u32'): VecKind => {
   return new VecKind(type, sizeEncoding);
 };
 

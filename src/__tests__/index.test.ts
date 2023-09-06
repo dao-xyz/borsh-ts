@@ -401,60 +401,131 @@ describe("arrays", () => {
       expect(deserialized.a).toEqual(arr);
     });
 
-    test("override size type", () => {
-      class TestStruct {
-        @field({ type: vec("u16", "u8") })
-        public a: number[];
+    describe("size type", () => {
+      test("u8", () => {
+        class TestStruct {
+          @field({ type: vec("u16", "u8") })
+          public a: number[];
 
-        constructor(properties?: { a: number[] }) {
-          if (properties) {
+          constructor(properties?: { a: number[] }) {
+            if (properties) {
+              this.a = properties.a;
+            }
+          }
+        }
+
+        validate(TestStruct);
+        const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+        expect(new Uint8Array(buf)).toEqual(
+          new Uint8Array([3, 1, 0, 2, 0, 3, 0])
+        );
+        const deserialized = deserialize(buf, TestStruct);
+        expect(deserialized.a).toEqual([1, 2, 3]);
+      });
+    });
+
+    describe("vu32", () => {
+      test("u8 value", () => {
+        class TestStruct {
+          @field({ type: vec("u8", "vu32") })
+          public a: Uint8Array;
+
+          constructor(properties: { a: Uint8Array }) {
             this.a = properties.a;
           }
+        }
+
+        validate(TestStruct);
+        const buf = serialize(new TestStruct({ a: new Uint8Array([1, 2, 3]) }));
+        expect(new Uint8Array(buf)).toEqual(new Uint8Array([3, 1, 2, 3]));
+        const deserialized = deserialize(buf, TestStruct);
+        expect(new Uint8Array(deserialized.a)).toEqual(
+          new Uint8Array([1, 2, 3])
+        );
+      });
+
+      test("u16 value", () => {
+        class TestStruct {
+          @field({ type: vec("u16", "vu32") })
+          public a: number[];
+
+          constructor(properties: { a: number[] }) {
+            this.a = properties.a;
+          }
+        }
+
+        validate(TestStruct);
+        const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+        expect(new Uint8Array(buf)).toEqual(
+          new Uint8Array([3, 1, 0, 2, 0, 3, 0])
+        );
+        const deserialized = deserialize(buf, TestStruct);
+        expect(deserialized.a).toEqual([1, 2, 3]);
+      });
+    });
+
+    test("handles offsets correctly", () => {
+      class TestStruct {
+        @field({ type: vec("u16", "u32") })
+        public a: number[];
+
+        @field({ type: vec("u32", "vu32") })
+        public b: number[];
+
+        @field({ type: vec("u32", "u16") })
+        public c: number[];
+
+        constructor(properties: { a: number[]; b: number[]; c: number[] }) {
+          this.a = properties.a;
+          this.b = properties.b;
+          this.c = properties.c;
         }
       }
 
       validate(TestStruct);
-      const buf = serialize(new TestStruct({ a: [1, 2, 3] }));
+      const struct = new TestStruct({ a: [1], b: [2], c: [3] });
+      const buf = serialize(struct);
       expect(new Uint8Array(buf)).toEqual(
-        new Uint8Array([3, 1, 0, 2, 0, 3, 0])
+        new Uint8Array([1, 0, 0, 0, 1, 0, 1, 2, 0, 0, 0, 1, 0, 3, 0, 0, 0])
       );
+
       const deserialized = deserialize(buf, TestStruct);
-      expect(deserialized.a).toEqual([1, 2, 3]);
+      expect(JSON.stringify(deserialized)).toEqual(JSON.stringify(struct));
     });
+  });
 
-    test("will not allocate unless there is data to deserialize", () => {
-      class Inner {
-        @field({ type: "u8" })
-        number: number;
-      }
+  test("will not allocate unless there is data to deserialize", () => {
+    class Inner {
+      @field({ type: "u8" })
+      number: number;
+    }
 
-      class TestStruct {
-        @field({ type: vec(Inner) })
-        public a: Inner[];
-      }
+    class TestStruct {
+      @field({ type: vec(Inner) })
+      public a: Inner[];
+    }
 
-      expect(() =>
-        deserialize(new Uint8Array([255, 255, 255, 255]), TestStruct)
-      ).toThrowError();
-    });
+    expect(() =>
+      deserialize(new Uint8Array([255, 255, 255, 255]), TestStruct)
+    ).toThrowError();
+  });
 
-    test("can deserialize large arrays", () => {
-      class TestStruct {
-        @field({ type: vec("string") })
-        public a: string[];
+  test("can deserialize large arrays", () => {
+    class TestStruct {
+      @field({ type: vec("string") })
+      public a: string[];
+    }
+    const size = 1024 * 1024 + 100;
+    const struct = new TestStruct();
+    struct.a = new Array(size).fill("a");
+    const deserialized = deserialize(serialize(struct), TestStruct);
+    expect(deserialized.a).toHaveLength(size);
+    for (const a of struct.a) {
+      // we do this instead of expect(...).toEqual() because this is faster
+      if (a !== "a") {
+        throw new Error("Unexpected");
       }
-      const size = 1024 * 1024 + 100;
-      const struct = new TestStruct();
-      struct.a = new Array(size).fill("a");
-      const deserialized = deserialize(serialize(struct), TestStruct);
-      expect(deserialized.a).toHaveLength(size);
-      for (const a of struct.a) {
-        // we do this instead of expect(...).toEqual() because this is faster
-        if (a !== "a") {
-          throw new Error("Unexpected");
-        }
-      }
-    });
+    }
   });
 });
 
@@ -711,6 +782,102 @@ describe("number", () => {
     const buf = serialize(instance);
     const deserialized = deserialize(buf, Struct);
     expect(deserialized.a).toEqual(n);
+  });
+
+  describe("varint", () => {
+    describe("vu32", () => {
+      class Struct {
+        @field({ type: "vu32" })
+        public a: number;
+
+        constructor(a: number) {
+          this.a = a;
+        }
+      }
+      it("123", () => {
+        const ser = serialize(new Struct(123));
+        expect(new Uint8Array(ser)).toEqual(new Uint8Array([123]));
+        expect(deserialize(ser, Struct).a).toEqual(123);
+      });
+
+      it("min", () => {
+        const ser = serialize(new Struct(0));
+        expect(new Uint8Array(ser)).toEqual(new Uint8Array([0]));
+        expect(deserialize(ser, Struct).a).toEqual(0);
+      });
+
+      it("max", () => {
+        const ser = serialize(new Struct(4294967295));
+        expect(new Uint8Array(ser)).toEqual(
+          new Uint8Array([255, 255, 255, 255, 15])
+        );
+        expect(deserialize(ser, Struct).a).toEqual(4294967295);
+      });
+    });
+
+    describe("vi32", () => {
+      class Struct {
+        @field({ type: "vi32" })
+        public a: number;
+
+        constructor(a: number) {
+          this.a = a;
+        }
+      }
+      it("min", () => {
+        const ser = serialize(new Struct(-2147483648));
+        expect(new Uint8Array(ser)).toEqual(
+          new Uint8Array([128, 128, 128, 128, 248, 255, 255, 255, 255, 1])
+        );
+        expect(deserialize(ser, Struct).a).toEqual(-2147483648);
+      });
+
+      it("0", () => {
+        const ser = serialize(new Struct(0));
+        expect(new Uint8Array(ser)).toEqual(new Uint8Array([0]));
+        expect(deserialize(ser, Struct).a).toEqual(0);
+      });
+
+      it("max", () => {
+        const ser = serialize(new Struct(2147483647));
+        expect(new Uint8Array(ser)).toEqual(
+          new Uint8Array([255, 255, 255, 255, 7])
+        );
+        expect(deserialize(ser, Struct).a).toEqual(2147483647);
+      });
+    });
+
+    describe("vsi32", () => {
+      class Struct {
+        @field({ type: "vsi32" })
+        public a: number;
+
+        constructor(a: number) {
+          this.a = a;
+        }
+      }
+      it("min", () => {
+        const ser = serialize(new Struct(-2147483648));
+        expect(new Uint8Array(ser)).toEqual(
+          new Uint8Array([255, 255, 255, 255, 15])
+        );
+        expect(deserialize(ser, Struct).a).toEqual(-2147483648);
+      });
+
+      it("0", () => {
+        const ser = serialize(new Struct(0));
+        expect(new Uint8Array(ser)).toEqual(new Uint8Array([0]));
+        expect(deserialize(ser, Struct).a).toEqual(0);
+      });
+
+      it("max", () => {
+        const ser = serialize(new Struct(2147483647));
+        expect(new Uint8Array(ser)).toEqual(
+          new Uint8Array([254, 255, 255, 255, 15])
+        );
+        expect(deserialize(ser, Struct).a).toEqual(2147483647);
+      });
+    });
   });
   describe("f32", () => {
     class Struct {

@@ -134,8 +134,8 @@ function serializeField(
             if (fieldType.sizeEncoding === 'u32')
               return BinaryWriter.uint8Array
             else {
-              const [sizeHandle, width] = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
-              return (obj, writer) => BinaryWriter.uint8ArrayCustom(obj, writer, sizeHandle, width)
+              const sizeHandle = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
+              return (obj, writer) => BinaryWriter.uint8ArrayCustom(obj, writer, sizeHandle)
             }
           }
         }
@@ -162,8 +162,8 @@ function serializeField(
 
       }
       else if (fieldType instanceof StringType) {
-        const [sizeHandle, width] = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
-        return (obj, writer) => BinaryWriter.stringCustom(obj, writer, sizeHandle, width)
+        const sizeHandle = BinaryWriter.smallNumberEncoding(fieldType.sizeEncoding)
+        return (obj, writer) => BinaryWriter.stringCustom(obj, writer, sizeHandle)
       }
 
 
@@ -830,7 +830,7 @@ const validateIterator = (clazzes: AbstractType<any> | AbstractType<any>[], allo
           }
 
           // Validate field
-          validateIterator(field.type, allowUndefined, visited);
+          validateIterator(field.type as Constructor<any>, allowUndefined, visited); // TODO types
         }
       });
     })
