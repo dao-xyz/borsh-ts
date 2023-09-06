@@ -1475,6 +1475,69 @@ describe("string", () => {
     expect(deserializedSome.c).toEqual("that ends");
   });
 
+  test("large string", () => {
+    let first = Buffer.from(crypto.randomBytes(10000)).toString("hex");
+    const bufSome = serialize(new TestStruct(first, 123, "that ends"));
+    const deserializedSome = deserialize(bufSome, TestStruct);
+    const deserializedSomeFromUint8Array = deserialize(
+      new Uint8Array(bufSome),
+      TestStruct
+    );
+
+    expect(deserializedSome).toMatchObject(deserializedSomeFromUint8Array);
+    expect(deserializedSome.a).toEqual(first);
+    expect(deserializedSome.b).toEqual(123);
+    expect(deserializedSome.c).toEqual("that ends");
+  });
+
+  test("uint8array overflow will throw error", () => {
+    // length 2 in u32 and string represented in length 1  (not ok)
+    expect(() =>
+      new BinaryReader(new Uint8Array([2, 0, 0, 0, 0])).string()
+    ).toThrowError(
+      new BorshError("Error decoding UTF-8 string: Invalid length")
+    );
+
+    // length 1 in u32 and tring represented in length 1  (ok)
+    new BinaryReader(new Uint8Array([1, 0, 0, 0, 0])).string();
+  });
+
+  test("buffer overflow will throw error", () => {
+    // length 2 in u32 and string represented in length 1  (not ok)
+    expect(() =>
+      BinaryReader.bufferString(new BinaryReader(Buffer.from([2, 0, 0, 0, 0])))
+    ).toThrowError(
+      new BorshError("Error decoding UTF-8 string: Invalid length")
+    );
+
+    // length 1 in u32 and tring represented in length 1  (ok)
+    BinaryReader.bufferString(new BinaryReader(Buffer.from([1, 0, 0, 0, 0])));
+  });
+
+  test("custom uint8array overflow will throw error", () => {
+    // length 2 in u32 and string represented in length 1  (not ok)
+    expect(() =>
+      BinaryReader.stringCustom(new BinaryReader(new Uint8Array([0])), () => 2)
+    ).toThrowError(
+      new BorshError("Error decoding UTF-8 string: Invalid length")
+    );
+
+    // length 1 in u32 and tring represented in length 1  (ok)
+    BinaryReader.stringCustom(new BinaryReader(new Uint8Array([0])), () => 1);
+  });
+
+  test("custom buffer overflow will throw error", () => {
+    // length 2 in u32 and string represented in length 1  (not ok)
+    expect(() =>
+      BinaryReader.stringCustom(new BinaryReader(Buffer.from([0])), () => 2)
+    ).toThrowError(
+      new BorshError("Error decoding UTF-8 string: Invalid length")
+    );
+
+    // length 1 in u32 and tring represented in length 1  (ok)
+    BinaryReader.stringCustom(new BinaryReader(Buffer.from([0])), () => 1);
+  });
+
   test("custom length", () => {
     class TestStructCustom {
       @field({ type: string("u8") })

@@ -471,7 +471,7 @@ const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: numb
       else // array 
       {
         let agg: number[] = [];
-        for (let i = 0; i < variantType; i++) {
+        for (let i = 0; i < (variantType as number); i++) {
           agg.push(reader.u8())
         }
         for (const dep of variantToDepndency) {
@@ -554,7 +554,7 @@ const setDependencyToProtoType = (ctor: Function, offset: number) => {
 }
 
 
-const getSuperMostClass = (clazz: Constructor<any>) => {
+const getSuperMostClass = (clazz: AbstractType<any>) => {
   while (Object.getPrototypeOf(clazz).prototype != undefined) {
     clazz = Object.getPrototypeOf(clazz);
   }
@@ -749,7 +749,7 @@ export const validate = (clazzes: Constructor<any> | Constructor<any>[], allowUn
   return validateIterator(clazzes, allowUndefined, new Set());
 };
 
-const validateIterator = (clazzes: Constructor<any> | Constructor<any>[], allowUndefined: boolean, visited: Set<string>) => {
+const validateIterator = (clazzes: AbstractType<any> | AbstractType<any>[], allowUndefined: boolean, visited: Set<string>) => {
   clazzes = Array.isArray(clazzes) ? clazzes : [clazzes];
   let schemas = new Map<any, StructKind>();
   clazzes.forEach((clazz, ix) => {

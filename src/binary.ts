@@ -419,8 +419,12 @@ export class BinaryReader {
 
   static string(reader: BinaryReader): string {
     const len = reader.u32();
+    const end = reader._offset + len;
+    if (end > reader._buf.length) {
+      throw new BorshError("Error decoding UTF-8 string: Invalid length")
+    }
+
     try {
-      const end = reader._offset + len;
       const string = utf8.read(reader._buf, reader._offset, end);
       reader._offset = end;
       return string;
@@ -432,6 +436,10 @@ export class BinaryReader {
   static bufferString(reader: BinaryReader): string {
     const len = reader.u32();
     const end = reader._offset + len;
+    if (end > reader._buf.length) {
+      throw new BorshError("Error decoding UTF-8 string: Invalid length")
+    }
+
     const string = (reader._buf as Buffer).toString(undefined, reader._offset, end);
     reader._offset = end;
     return string;
@@ -440,8 +448,13 @@ export class BinaryReader {
 
   static bufferStringCustom(reader: BinaryReader, length: (reader: BinaryReader) => number): string {
     const len = length(reader);
+    const end = reader._offset + len;
+    if (end > reader._buf.length) {
+      throw new BorshError("Error decoding UTF-8 string: Invalid length")
+    }
+
     try {
-      const end = reader._offset + len;
+
       const string = (reader._buf as Buffer).toString(undefined, reader._offset, end);
       reader._offset = end;
       return string;
@@ -452,8 +465,12 @@ export class BinaryReader {
 
   static stringCustom(reader: BinaryReader, length: (reader: BinaryReader) => number): string {
     const len = length(reader);
+    const end = reader._offset + len;
+    if (end > reader._buf.length) {
+      throw new BorshError("Error decoding UTF-8 string: Invalid length")
+    }
+
     try {
-      const end = reader._offset + len;
       const string = utf8.read(reader._buf, reader._offset, end);
       reader._offset = end;
       return string;
