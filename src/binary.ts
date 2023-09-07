@@ -305,7 +305,7 @@ export class BinaryReader {
     const value = reader._buf[reader._offset];
     reader._offset += 1;
     if (value !== 1 && value !== 0) {
-      throw new Error("Unexpected value for boolean: " + value + ". Expecting either 1 or 0 ")
+      throw new BorshError("Unexpected value for boolean: " + value + ". Expecting either 1 or 0 ")
     }
     return value ? true : false;
   }
@@ -316,7 +316,7 @@ export class BinaryReader {
 
   static u8(reader: BinaryReader): number {
     if (reader._offset >= reader._buf.length) {
-      throw new Error("Reader out of bounds")
+      throw new BorshError("Reader out of bounds")
     }
 
     const value = reader._buf[reader._offset];
