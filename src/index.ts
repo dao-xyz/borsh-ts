@@ -674,7 +674,7 @@ export const variant = (index: number | number[] | string) => {
               throw new BorshError(`Variant of ${ctor.name} have different type compared to its sibling: ${dependency.name}, expecting either number, number[] (with same sizes) or string, but not a combination of them`)
             }
             else if (index === otherVariant || (Array.isArray(index) && Array.isArray(otherVariant) && (index.length !== otherVariant.length || index.every((value, index) => value === (otherVariant as number[])[index])))) {
-              throw new BorshError(`Variant of ${ctor.name}: ${variant} is the same as for ${dependency.name} which is not allowed (non-determinism)`)
+              throw new BorshError(`Variant of ${ctor.name}: ${JSON.stringify(index)} is the same as for ${dependency.name} which is not allowed (non-determinism)`)
 
             }
           }
