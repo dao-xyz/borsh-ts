@@ -37,10 +37,15 @@ const PROTOTYPE_SCHEMA_OFFSET = PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + PROTO
  * @returns bytes
  */
 export function serialize(
-  obj: any
+  obj: any,
+  writer: BinaryWriter = new BinaryWriter()
 ): Uint8Array {
-  const writer = new BinaryWriter();
-  (obj.constructor._borsh_serialize || (obj.constructor._borsh_serialize = serializeStruct(obj.constructor)))(obj, writer)
+  (obj.constructor._borsh_serialize || (obj.constructor._borsh_serialize = serializeStruct(obj.constructor, true)))(obj, writer)
+  return writer.finalize();
+}
+
+function recursiveSerialize(obj: any, writer: BinaryWriter = new BinaryWriter()) {
+  (obj.constructor._borsh_serialize_recursive || (obj.constructor._borsh_serialize_recursive = serializeStruct(obj.constructor, false)))(obj, writer)
   return writer.finalize();
 }
 
@@ -196,7 +201,8 @@ function serializeField(
 
 
 function serializeStruct(
-  ctor: Function
+  ctor: Function,
+  allowCustomSerializer = true
 ) {
   let handle: (obj: any, writer: BinaryWriter) => any = undefined;
   var i = 0;
@@ -236,20 +242,29 @@ function serializeStruct(
           } : (_obj, writer) => writer.string(index);
         }
       }
-      for (const field of schema.fields) {
+      if (allowCustomSerializer && schema.serializer) {
         let prev = handle;
-        const fieldHandle = serializeField(field.key, field.type);
-        if (prev) {
-          handle = (obj, writer) => {
-            prev(obj, writer);
-            fieldHandle(obj[field.key], writer)
+        handle = prev ? (obj, writer) => {
+          prev(obj, writer);
+          schema.serializer(obj, writer, (obj: any) => recursiveSerialize(obj))
+        } : (obj, writer) => schema.serializer(obj, writer, (obj: any) => recursiveSerialize(obj))
+      }
+      else {
+        for (const field of schema.fields) {
+          let prev = handle;
+          const fieldHandle = serializeField(field.key, field.type);
+          if (prev) {
+            handle = (obj, writer) => {
+              prev(obj, writer);
+              fieldHandle(obj[field.key], writer)
+            }
+          }
+          else {
+            handle = (obj, writer) => fieldHandle(obj[field.key], writer)
           }
         }
-        else {
-          handle = (obj, writer) => fieldHandle(obj[field.key], writer)
-        }
-
       }
+
     }
 
     else if (once && !getDependencies(ctor, i)?.length) {
@@ -739,6 +754,22 @@ export function field(properties: SimpleField | CustomField<any>) {
     }
   };
 }
+
+
+/**
+ * @param properties, the properties of the field mapping to schema
+ * @returns
+ */
+export function serializer() {
+  return function (target: any, propertyKey: string) {
+    const offset = getOffset(target.constructor);
+    const schemas = getOrCreateStructMeta(target.constructor, offset);
+    schemas.serializer = (obj, writer, serialize) => obj[propertyKey](writer, serialize)
+  };
+}
+
+
+
 
 /**
  * @param clazzes

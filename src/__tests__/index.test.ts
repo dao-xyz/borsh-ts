@@ -13,6 +13,7 @@ import {
   getSchema,
   BorshError,
   string,
+  serializer,
 } from "../index.js";
 import crypto from "crypto";
 
@@ -1584,34 +1585,146 @@ describe("string", () => {
   });
 });
 
-describe("bool", () => {
-  test("field bolean", () => {
-    class TestStruct {
-      @field({ type: "bool" })
-      public a: boolean;
-
-      constructor(a: boolean) {
-        this.a = a;
-      }
+describe("options", () => {
+  class Test {
+    @field({ type: "u8" })
+    number: number;
+    constructor(number: number) {
+      this.number = number;
     }
-    validate(TestStruct);
-    const expectedResult: StructKind = new StructKind({
-      fields: [
-        {
-          key: "a",
-          type: "bool",
-        },
-      ],
-    });
-    expect(getSchema(TestStruct)).toEqual(expectedResult);
-    const buf = serialize(new TestStruct(true));
-    expect(new Uint8Array(buf)).toEqual(new Uint8Array([1]));
-    const deserializedSome = deserialize(new Uint8Array(buf), TestStruct);
-    expect(deserializedSome.a).toEqual(true);
+  }
+  test("pass writer", () => {
+    const writer = new BinaryWriter();
+    writer.u8(1);
+    expect(new Uint8Array(serialize(new Test(123), writer))).toEqual(
+      new Uint8Array([1, 123])
+    );
   });
 });
 
 describe("override", () => {
+  describe("serializer", () => {
+    class TestStruct {
+      @serializer()
+      override(writer: BinaryWriter) {
+        writer.u8(1);
+      }
+    }
+
+    class TestStructMixed {
+      @field({ type: TestStruct })
+      nested: TestStruct;
+
+      @field({ type: "u8" })
+      number: number;
+
+      cached: Uint8Array;
+
+      constructor(number: number) {
+        this.nested = new TestStruct();
+        this.number = number;
+      }
+
+      @serializer()
+      override(writer: BinaryWriter, serialize: (obj: this) => Uint8Array) {
+        if (this.cached) {
+          writer.set(this.cached);
+        } else {
+          this.cached = serialize(this);
+          writer.set(this.cached);
+        }
+      }
+    }
+
+    class TestStructMixedNested {
+      @field({ type: TestStructMixed })
+      nested: TestStructMixed;
+
+      @field({ type: "u8" })
+      number: number;
+
+      cached: Uint8Array;
+
+      constructor(number: number) {
+        this.nested = new TestStructMixed(number);
+        this.number = number;
+      }
+
+      @serializer()
+      override(writer: BinaryWriter, serialize: (obj: this) => Uint8Array) {
+        if (this.cached) {
+          writer.set(this.cached);
+        } else {
+          this.cached = serialize(this);
+          writer.set(this.cached);
+        }
+      }
+    }
+
+    class TestStructNested {
+      @field({ type: TestStruct })
+      nested: TestStruct;
+
+      @field({ type: "u8" })
+      number: number;
+      constructor() {
+        this.nested = new TestStruct();
+        this.number = 2;
+      }
+    }
+
+    class TestBaseClass {
+      @serializer()
+      override(writer: BinaryWriter) {
+        writer.u8(3);
+      }
+    }
+    @variant(2)
+    class TestStructInherited extends TestBaseClass {
+      @field({ type: TestStruct })
+      struct: TestStruct;
+
+      @field({ type: "u8" })
+      number: number;
+      constructor() {
+        super();
+        this.struct = new TestStruct();
+        this.number = 0;
+      }
+    }
+
+    test("struct", () => {
+      expect(new Uint8Array(serialize(new TestStruct()))).toEqual(
+        new Uint8Array([1])
+      );
+    });
+    test("recursive call", () => {
+      const obj = new TestStructMixed(2);
+      expect(new Uint8Array(serialize(obj))).toEqual(new Uint8Array([1, 2]));
+      expect(new Uint8Array(obj.cached)).toEqual(new Uint8Array([1, 2]));
+      expect(new Uint8Array(serialize(obj))).toEqual(new Uint8Array([1, 2]));
+    });
+    test("recursive call nested", () => {
+      const obj = new TestStructMixedNested(2);
+      expect(new Uint8Array(serialize(obj))).toEqual(new Uint8Array([1, 2, 2]));
+      expect(new Uint8Array(obj.cached)).toEqual(new Uint8Array([1, 2, 2]));
+      expect(new Uint8Array(obj.nested.cached)).toEqual(new Uint8Array([1, 2]));
+
+      expect(new Uint8Array(serialize(obj))).toEqual(new Uint8Array([1, 2, 2]));
+    });
+
+    test("nested", () => {
+      expect(new Uint8Array(serialize(new TestStructNested()))).toEqual(
+        new Uint8Array([1, 2])
+      );
+    });
+
+    test("inherited", () => {
+      expect(new Uint8Array(serialize(new TestStructInherited()))).toEqual(
+        new Uint8Array([3, 2, 1, 0])
+      );
+    });
+  });
   test("serialize/deserialize", () => {
     /**
      * Serialize field with custom serializer and deserializer

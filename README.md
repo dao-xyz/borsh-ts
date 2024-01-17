@@ -227,6 +227,8 @@ class TestStruct {
 ```
 
 **Custom serialization and deserialization**
+Override how one field is handled
+
 ```typescript
 class TestStruct {
 
@@ -245,11 +247,47 @@ class TestStruct {
     }
 }
 
-validate(TestStruct);
 const serialized = serialize(new TestStruct(3));
 const deserialied = deserialize(serialized, TestStruct);
 expect(deserialied.number).toEqual(3);
 ```
+
+Override how one class is serialized
+
+```typescript
+import { serializer } from '@dao-xyz/borsh'
+class TestStruct {
+
+  @field({type: 'u8'})
+  public number: number;
+  
+  constructor(number: number) {
+    this.number = number;
+  }
+
+  cache: Uint8Array | undefined;
+
+  @serializer()
+  override(writer: BinaryWriter, serialize: (obj: this) => Uint8Array) {
+    if (this.cache) {
+      writer.set(this.cache)
+    }
+    else {
+      this.cache = serialize(this)
+      writer.set(this.cache)
+    }
+  }
+}
+
+const obj = new TestStruct(3);
+const serialized = serialize(obj);
+const deserialied = deserialize(serialized, TestStruct);
+expect(deserialied.number).toEqual(3);
+expect(obj.cache).toBeDefined()
+```
+
+
+
 
 
 ## Inheritance

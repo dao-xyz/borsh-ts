@@ -129,6 +129,7 @@ export interface Field {
 
 export class StructKind {
   variant?: number | number[] | string
+  serializer?: (any: any, writer: BinaryWriter, serialize: (obj: any) => Uint8Array) => void
   fields: Field[];
   constructor(properties?: { variant?: number | number[] | string, fields: Field[] }) {
     if (properties) {

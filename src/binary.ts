@@ -186,6 +186,13 @@ export class BinaryWriter {
     writer.totalSize += lengthSize + len;
   }
 
+  public set(array: Uint8Array) {
+    let offset = this.totalSize;
+    this._writes = this._writes.next = () => {
+      this._buf.set(array, offset);
+    }
+    this.totalSize += array.length
+  }
 
   public uint8Array(array: Uint8Array) {
     return BinaryWriter.uint8Array(array, this)
