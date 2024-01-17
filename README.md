@@ -260,7 +260,7 @@ class TestStruct {
 
   @field({type: 'u8'})
   public number: number;
-  
+
   constructor(number: number) {
     this.number = number;
   }
@@ -269,13 +269,10 @@ class TestStruct {
 
   @serializer()
   override(writer: BinaryWriter, serialize: (obj: this) => Uint8Array) {
-    if (this.cache) {
-      writer.set(this.cache)
-    }
-    else {
+    if (!this.cache) {
       this.cache = serialize(this)
-      writer.set(this.cache)
     }
+    writer.set(this.cache)
   }
 }
 
