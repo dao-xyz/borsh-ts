@@ -757,6 +757,7 @@ export function field(properties: SimpleField | CustomField<any>) {
 
 
 /**
+ * @experimental
  * @param properties, the properties of the field mapping to schema
  * @returns
  */
