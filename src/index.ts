@@ -11,6 +11,7 @@ import {
   IntegerType,
   getOffset,
   StringType,
+  extendingClasses,
 } from "./types.js";
 export * from "./binary.js";
 export * from "./types.js";
@@ -360,8 +361,10 @@ function deserializeField(
 }
 export function deserializeStruct(targetClazz: any, fromBuffer: boolean): (reader: BinaryReader, options?: DeserializeStructOptions) => any {
 
-  const handle = getCreateDeserializationHandle(targetClazz, 0, fromBuffer); // "compile time"
-  return (reader: BinaryReader, options?: DeserializeStructOptions) => { // runtime
+  const handle = getCreateDeserializationHandle(targetClazz, 0, fromBuffer);
+  // "compile time"
+  return (reader: BinaryReader, options?: DeserializeStructOptions) => {
+    // "runtime" 
     const result = handle({}, reader, options)
     if (!options?.unchecked && !(options as any)?.object && !checkClazzesCompatible(result.constructor, targetClazz)) {
       throw new BorshError(`Deserialization of ${targetClazz?.name || targetClazz} yielded another Class: ${result.constructor?.name} which are not compatible`);
@@ -375,7 +378,7 @@ export function deserializeStruct(targetClazz: any, fromBuffer: boolean): (reade
 const getCreateDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean): (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any => getDeserializationHandle(clazz, offset, fromBuffer) || setDeserializationHandle(clazz, offset, fromBuffer, createDeserializeStructHandle(clazz, offset, fromBuffer))
 const getDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset + (fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)]
 const setDeserializationHandle = (clazz: any, offset: number, fromBuffer: boolean, handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset + (fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)] = handle;
-
+const clearDeserializeStructHandle = (clazz: any, offset: number, fromBuffer: boolean) => delete clazz.prototype[PROTOTYPE_DESERIALIZATION_HANDLER_OFFSET + offset + (fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)]
 const createDeserializeStructHandle = (currClazz: Constructor<any>, offset: number, fromBuffer: boolean): ((result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any) => {
   let handle: (result: any, reader: BinaryReader, options?: DeserializeStructOptions) => any | undefined = undefined;
   let endHandle = (result: any, reader: BinaryReader, options: DeserializeStructOptions) => {
@@ -677,6 +680,14 @@ export const variant = (index: number | number[] | string) => {
     setDependencyToProtoType(ctor, offset);
     let schemas = getOrCreateStructMeta(ctor, offset);
     schemas.variant = index;
+
+    // clear deserialization handles for all dependencies since we might have made a dynamic import which breakes the deserialization path caches
+    for (const clazz of extendingClasses(ctor)) {
+      clearDeserializeStructHandle(clazz, 0, true);
+      clearDeserializeStructHandle(clazz, 0, false)
+    }
+
+
 
     // Check for variant conficts 
     for (let i = offset - 1; i >= 0; i--) {

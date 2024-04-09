@@ -1312,6 +1312,11 @@ describe("enum", () => {
     expect(deserialized.members[1]).toBeInstanceOf(Orangutan);
     expect(deserialized.members[1].name).toEqual("Ora");
   });
+
+  test("dynamic import", async () => {
+    await import("./fixtures/enums/b.js");
+    await import("./fixtures/enums/a.js");
+  });
 });
 
 describe("option", () => {
