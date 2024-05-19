@@ -587,13 +587,13 @@ const checkClazzesCompatible = (clazzA: Constructor<any> | AbstractType<any>, cl
   return clazzA == clazzB || clazzA.isPrototypeOf(clazzB) || clazzB.isPrototypeOf(clazzA)
 }
 
-const getDependencies = (ctor: Function, offset: number): Function[] | undefined => ctor.prototype[PROTOTYPE_DEPENDENCY_HANDLER_OFFSET + offset]
+export const getDependencies = (ctor: Function, offset: number): Function[] | undefined => ctor.prototype[PROTOTYPE_DEPENDENCY_HANDLER_OFFSET + offset]
 
 const setDependencies = (ctor: Function, offset: number, dependencies: Function[]) => {
   ctor.prototype[PROTOTYPE_DEPENDENCY_HANDLER_OFFSET + offset] = dependencies // [getDependencyKey(ctor)] 
 }
 
-const getAllDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
+export const getAllDependencies = (ctor: Function, offset: number): Map<Function, { schema: StructKind, offset: number }> | undefined => {
   let existing = getDependencies(ctor, offset);
   if (existing) {
     let ret: Map<Function, { schema: StructKind, offset: number }> = new Map()
