@@ -6,5 +6,3 @@ import { Base } from "./base.js";
 class A extends Base { }
 
 deserialize(serialize(new A()), Base)
-
-console.log("HERE")
