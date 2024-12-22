@@ -51,7 +51,7 @@ class SomeClass
     @field({type: 'u64'})
     y: bigint
 
-    @field({type: 'string'})
+    @field({type: 'String'})
     z: string
 
     @field({type: option(vec('u32'))})
@@ -117,7 +117,7 @@ class TestStruct {
 }
 
 ```
-Variants can be 'number', 'number[]' (represents nested Rust Enums) or 'string' (not part of the Borsh specification). i.e.
+Variants can be 'number', 'number[]' (represents nested Rust Enums) or 'String' (not part of the Borsh specification). i.e.
 
 ```typescript 
 @variant(0)
@@ -154,7 +154,7 @@ class TestStruct {
 *With Borsh specification, string sizes will be encoded with 'u32'*
 ```typescript 
 class TestStruct {
-  @field({ type: 'string' })
+  @field({ type: 'String' })
   public string: string; 
 }
 ```
@@ -365,7 +365,7 @@ validate([TestStruct])
 | `f32` float           | `number`            |
 | `f64` float           | `number`            |
 | byte arrays           | `Uint8Array`        |
-| UTF-8 string          | `string`            |
+| String                | `string`            |
 | option                | `undefined` or type |
 | map                   | N/A                 |
 | set                   | N/A                 |
