@@ -49,7 +49,7 @@ export type IntegerType =
 export type FloatType = 'f32' | 'f64';
 
 export type PrimitiveType = "bool"
-  | "string"
+  | "String"
   | IntegerType
   | FloatType
 

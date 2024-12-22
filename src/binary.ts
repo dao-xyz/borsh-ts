@@ -275,7 +275,7 @@ export class BinaryWriter {
     else if (encoding === 'f64') {
       return BinaryWriter.f64
     }
-    else if (encoding === 'string') {
+    else if (encoding === 'String') {
       return BinaryWriter.string
     }
     else {
@@ -508,7 +508,7 @@ export class BinaryReader {
     else if (encoding === 'u512') {
       return BinaryReader.u512
     }
-    else if (encoding === 'string') {
+    else if (encoding === 'String') {
       return fromBuffer ? BinaryReader.bufferString : BinaryReader.string
     }
     else if (encoding === 'bool') {

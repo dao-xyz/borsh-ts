@@ -440,7 +440,7 @@ describe("arrays", () => {
 
     test("can deserialize large arrays", () => {
       class TestStruct {
-        @field({ type: vec("string") })
+        @field({ type: vec("String") })
         public a: string[];
       }
       const size = 1024 * 1024 + 100;
@@ -1279,7 +1279,7 @@ describe("enum", () => {
 
   test("enum string variant", () => {
     class Ape {
-      @field({ type: "string" })
+      @field({ type: "String" })
       name: string;
 
       constructor(name?: string) {
@@ -1387,7 +1387,7 @@ describe("option", () => {
 
   test("empty string option", () => {
     class TestStruct {
-      @field({ type: option("string") })
+      @field({ type: option("String") })
       string: string;
 
       constructor(string: string) {
@@ -1429,15 +1429,15 @@ describe("option", () => {
   });
 });
 
-describe("string", () => {
+describe("String", () => {
   class TestStruct {
-    @field({ type: "string" })
+    @field({ type: "String" })
     public a: string;
 
     @field({ type: "u8" })
     public b: number;
 
-    @field({ type: "string" })
+    @field({ type: "String" })
     public c: string;
 
     constructor(a: string, b: number, c: string) {
@@ -1934,8 +1934,8 @@ describe("discriminator", () => {
 
     @variant("abc")
     class D extends C {
-      @field({ type: "string" })
-      string: string = "string";
+      @field({ type: "String" })
+      string: string = "String";
     }
 
     const discriminator = getDiscriminator(D);
@@ -1947,8 +1947,8 @@ describe("discriminator", () => {
   test("will reject for undefined behahiour, with super variant", () => {
     @variant([1, 2])
     class A {
-      @field({ type: "string" })
-      string: string = "string";
+      @field({ type: "String" })
+      string: string = "String";
     }
     @variant(3)
     class B extends A {}
@@ -1957,8 +1957,8 @@ describe("discriminator", () => {
 
   test("will reject for undefined behahiour, without super variant", () => {
     class A {
-      @field({ type: "string" })
-      string: string = "string";
+      @field({ type: "String" })
+      string: string = "String";
     }
     @variant(3)
     class B extends A {}
@@ -2019,12 +2019,12 @@ describe("Validation", () => {
     }
 
     class A extends Super {
-      @field({ type: "string" })
+      @field({ type: "String" })
       string: string;
     }
 
     class B extends Super {
-      @field({ type: "string" })
+      @field({ type: "String" })
       string: string;
     }
     expect(() => validate(Super)).toThrowError(BorshError);
@@ -2118,12 +2118,12 @@ describe("Validation", () => {
     }
 
     class A extends TestStruct {
-      @field({ type: "string" })
+      @field({ type: "String" })
       string: string = "A";
     }
 
     class B extends TestStruct {
-      @field({ type: "string" })
+      @field({ type: "String" })
       string: string = "B";
     }
     expect(() =>
@@ -2252,7 +2252,7 @@ describe("Validation", () => {
 describe("deserialize input type", () => {
   test("buffer compat", () => {
     class Clazz {
-      @field({ type: "string" })
+      @field({ type: "String" })
       string: string;
 
       constructor(string?: string) {
@@ -2311,7 +2311,7 @@ describe("deserialize input type", () => {
 
   test("can alternate between", () => {
     class Clazz {
-      @field({ type: option("string") })
+      @field({ type: option("String") })
       string?: string;
 
       constructor(string?: string) {
