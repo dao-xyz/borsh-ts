@@ -1,6 +1,6 @@
 {
 	"name": "@dao-xyz/borsh",
-	"version": "5.2.3",
+	"version": "5.2.4",
 	"description": "Binary Object Representation Serializer with decorators (core)",
 	"license": "Apache-2.0",
 	"type": "module",

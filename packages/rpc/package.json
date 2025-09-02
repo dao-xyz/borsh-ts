@@ -1,6 +1,6 @@
 {
 	"name": "@dao-xyz/borsh-rpc",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"description": "Borsh-based RPC over typed messages and decorators",
 	"license": "Apache-2.0",
 	"type": "module",
@@ -29,6 +29,6 @@
 		"test": "vitest run -c vitest.config.ts"
 	},
 	"dependencies": {
-		"@dao-xyz/borsh": "^5.2.3"
+		"@dao-xyz/borsh": "^5.2.4"
 	}
 }
