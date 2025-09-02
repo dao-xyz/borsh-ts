@@ -1,7 +1,9 @@
-import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
 
-const borshSrc = fileURLToPath(new URL("../borsh/src/index.ts", import.meta.url));
+const borshSrc = fileURLToPath(
+	new URL("../borsh/src/index.ts", import.meta.url),
+);
 
 export default defineConfig({
 	test: {
