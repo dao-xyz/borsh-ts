@@ -12,7 +12,7 @@ Two packages:
 
 This root README gives a quick taste. Full documentation lives in each subpackage README.
 
-## Quick taste: @dao-xyz/borsh
+## Package: @dao-xyz/borsh
 
 ```ts
 import { deserialize, field, serialize } from "@dao-xyz/borsh";
@@ -29,9 +29,9 @@ const bytes = serialize(new User({ id: 1, name: "alice" }));
 const u = deserialize(bytes, User);
 ```
 
-Full docs: packages/borsh/README.md
+Full docs: [./packages/borsh/README.md](./packages/borsh/README.md)
 
-## EXPERIMENTAL: Quick taste: @dao-xyz/borsh-rpc
+## EXPERIMENTAL: Package: @dao-xyz/borsh-rpc
 
 ```ts
 import { field } from "@dao-xyz/borsh";
@@ -61,7 +61,7 @@ await client.addOne(41); // 42
 unsub();
 ```
 
-Full docs: packages/rpc/README.md
+Full docs: [./packages/rpc/README.md](./packages/rpc/README.md)
 
 ## Development
 
