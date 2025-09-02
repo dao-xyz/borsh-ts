@@ -1,2 +1,0 @@
-syntax = "proto3";
-message Message { uint32 age = 1; }
