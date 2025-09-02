@@ -18,11 +18,11 @@ This root README gives a quick taste. Full documentation lives in each subpackag
 import { deserialize, field, serialize } from "@dao-xyz/borsh";
 
 class User {
-	@field({ type: "u32" }) 
-  id: number;
-	@field({ type: "string" }) 
-  name: string;
-  
+	@field({ type: "u32" })
+	id: number;
+	@field({ type: "string" })
+	name: string;
+
 	constructor(init: User) {
 		this.id = init.id;
 		this.name = init.name;
@@ -48,14 +48,14 @@ import {
 } from "@dao-xyz/borsh-rpc";
 
 class Payload {
-	@field({ type: "u8" }) 
-  x = 0;
+	@field({ type: "u8" })
+	x = 0;
 }
 
 @service()
 class API {
-	@method({ args: "u32", returns: "u32" }) 
-  addOne(n: number) {
+	@method({ args: "u32", returns: "u32" })
+	addOne(n: number) {
 		return n + 1;
 	}
 }
