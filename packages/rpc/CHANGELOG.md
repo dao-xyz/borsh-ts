@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.0.0...@dao-xyz/borsh-rpc-v1.1.0) (2025-09-03)
+
+
+### Features
+
+* events decorator ([3840e81](https://github.com/dao-xyz/borsh-ts/commit/3840e8121373b2802e13ecf63f0cd9e8fe5108b5))
+
 ## 1.0.0 (2025-09-02)
 
 
