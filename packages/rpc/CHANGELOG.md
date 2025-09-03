@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.3.0...@dao-xyz/borsh-rpc-v1.3.1) (2025-09-03)
+
+
+### Bug Fixes
+
+* ctor any ([4d712b8](https://github.com/dao-xyz/borsh-ts/commit/4d712b8bd5f7994f62b3d49f2ccb5d410f283a64))
+* support dynamic deps ([6940ae8](https://github.com/dao-xyz/borsh-ts/commit/6940ae895a69bfedd292d8829a87e0896f5e6161))
+
 ## [1.3.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.2.0...@dao-xyz/borsh-rpc-v1.3.0) (2025-09-03)
 
 
