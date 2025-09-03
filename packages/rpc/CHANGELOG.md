@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.1.0...@dao-xyz/borsh-rpc-v1.2.0) (2025-09-03)
+
+
+### Features
+
+* union types ([6326f4c](https://github.com/dao-xyz/borsh-ts/commit/6326f4c76531b65e8b1329f8c315eacc8df9ad24))
+
 ## [1.1.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.0.0...@dao-xyz/borsh-rpc-v1.1.0) (2025-09-03)
 
 
