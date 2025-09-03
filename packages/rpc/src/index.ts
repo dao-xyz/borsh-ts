@@ -1478,6 +1478,11 @@ export type RpcDecoratedCtor<T extends object = any> = (new (
 	bind?: (transport: RpcTransport, instance?: T) => () => void;
 	Proxy?: new (transport: RpcTransport) => T;
 	rpcSchema?: RpcSchema<T>;
+	registerDependencies?: (
+		deps:
+			| Array<Constructor<any> | object>
+			| Record<string, Constructor<any> | object>,
+	) => void;
 };
 
 function ensureSchema<T extends object>(
@@ -1789,6 +1794,11 @@ export function service<TBase extends new (...args: any[]) => any>(options?: {
 	bind: (transport: RpcTransport, instance?: InstanceType<C>) => () => void;
 	Proxy: new (transport: RpcTransport) => RpcProxy<InstanceType<C>>;
 	rpcSchema: RpcSchema<InstanceType<C>>;
+	registerDependencies: (
+		deps:
+			| Array<Constructor<any> | object>
+			| Record<string, Constructor<any> | object>,
+	) => void;
 } {
 	return (ctor: any) => {
 		const c = ctor as RpcDecoratedCtor<any>;
@@ -1878,6 +1888,33 @@ export function service<TBase extends new (...args: any[]) => any>(options?: {
 		if (!(c as any).rpcSchema) {
 			Object.defineProperty(c, "rpcSchema", {
 				value: schema,
+				writable: false,
+				enumerable: false,
+			});
+		}
+		// Runtime registration API: merge new deps into static registry
+		if (!(c as any).registerDependencies) {
+			Object.defineProperty(c, "registerDependencies", {
+				value: (
+					deps:
+						| Array<Constructor<any> | object>
+						| Record<string, Constructor<any> | object>,
+				) => {
+					const existing = ((c as any)[RPC_DEPENDENCIES_KEY] ??= {}) as Record<
+						string,
+						Constructor<any>
+					>;
+					if (Array.isArray(deps)) {
+						for (const d of deps) {
+							const ct = normalizeCtor(d) as Constructor<any>;
+							existing[ct.name] = ct;
+						}
+					} else {
+						for (const [name, val] of Object.entries(deps)) {
+							existing[name] = normalizeCtor(val) as Constructor<any>;
+						}
+					}
+				},
 				writable: false,
 				enumerable: false,
 			});
@@ -2406,4 +2443,14 @@ export function fn(
 	returns?: MethodSchema["returns"],
 ): FieldType {
 	return fnRef(args, returns);
+}
+
+// Exported helper for runtime dependency registration
+export function registerDependencies(
+	ctor: RpcDecoratedCtor<any>,
+	deps:
+		| Array<Constructor<any> | object>
+		| Record<string, Constructor<any> | object>,
+): void {
+	(ctor as any).registerDependencies?.(deps);
 }
