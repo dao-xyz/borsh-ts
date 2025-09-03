@@ -8,7 +8,7 @@ Lightweight RPC over Borsh-encoded messages with decorators and schema-driven pr
 - Decorators: `@service`, `@method`, `@subservice`, `@events`, `syncedField` generate schema and helpers.
 - Supports primitives and borsh-decorated classes, multiple args, void, promises, and streaming (AsyncIterable).
 - Nested services and two-way communication supported.
-- Extras: typed events over RPC, lazy subservices with presence, interface-typed subservices, union-typed method args.
+- Extras: typed events over RPC, lazy subservices with presence, interface-typed subservices, union-typed method args, constructor and function references.
 
 ## Install
 
@@ -259,3 +259,37 @@ for await (const v of client.level.watch()) { /* stream updates */ }
 ```
 
 Under the hood, the server exposes `$get:name`, `$set:name`, `$watch:name` and the client presents a type-safe `SyncedAccessor<T>`.
+
+## Passing constructors and callbacks
+
+You can pass a constructor reference or a function (callback) across the RPC boundary.
+
+- Constructors: encode by name, resolve via a per-connection registry.
+- Functions: encode by a temporary id; calls from the remote side invoke your local function.
+
+Constructors used in method schemas are auto-detected and registered per connection. You generally don’t need to declare `dependencies`; it’s optional as a fallback when auto-detection isn’t possible.
+
+```ts
+import { ctorRef, fnRef, method, service } from "@dao-xyz/borsh-rpc";
+
+class L { constructor(public n: number) {} }
+
+@service()
+class API {
+	// Pass a constructor reference; server returns its registered name
+	@method({ args: ctorRef(L), returns: "string" })
+	ctorName(_c: new (...a: any[]) => any) { return "L"; }
+
+	// Pass a callback; server calls it and returns the result
+	@method({ args: [fnRef(["u32"], "u32")], returns: "u32" })
+	call(cb: (x: number) => number) { return cb(7); }
+}
+```
+
+Notes and constraints:
+- Constructors referenced by your method schemas (including within unions/structs/fnRef args/returns) are auto-registered from the schema. If you need to force-register extras, you can still use `@service({ dependencies })`.
+- Callback results can be:
+	- `void` (use returns: "void"),
+	- a value (provide a FieldType for `returns`),
+	- a stream (use `returns: { stream: T }` and return an Iterable/AsyncIterable from the callback).
+- Internally, callbacks use a `$cb:<id>` method; ids are per-connection.
