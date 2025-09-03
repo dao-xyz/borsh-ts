@@ -2362,11 +2362,14 @@ class CtorRefKind {
 function isCtorRefKind(x: any): x is CtorRefKind {
 	return !!x && typeof x === "object" && x.kind === "ctor-ref";
 }
-export function ctorRef(_ctorOrProto: Constructor<any> | object): FieldType {
+export function ctorRef(
+	_ctorOrProto?: Constructor<any> | object | "any",
+): FieldType {
 	// Capture ctor when provided for auto-registration; encoding still uses CURRENT_CODEC_CTX
-	const ct = _ctorOrProto
-		? (normalizeCtor(_ctorOrProto) as Constructor<any>)
-		: undefined;
+	const ct =
+		_ctorOrProto && _ctorOrProto !== "any"
+			? (normalizeCtor(_ctorOrProto) as Constructor<any>)
+			: undefined;
 	return new CtorRefKind(ct) as unknown as FieldType;
 }
 
@@ -2393,8 +2396,10 @@ export function fnRef(
 }
 
 // Friendly aliases
-export function ctor(_ctorOrProto: Constructor<any> | object): FieldType {
-	return ctorRef(_ctorOrProto);
+export function ctor(
+	_ctorOrProto?: Constructor<any> | object | "any",
+): FieldType {
+	return ctorRef(_ctorOrProto as any);
 }
 export function fn(
 	args?: FieldType | FieldType[],
