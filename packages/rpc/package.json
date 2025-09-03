@@ -1,6 +1,6 @@
 {
 	"name": "@dao-xyz/borsh-rpc",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"description": "Borsh-based RPC over typed messages and decorators",
 	"license": "Apache-2.0",
 	"type": "module",
