@@ -374,6 +374,10 @@ export function createRpcProxy<T extends object>(
 	transport: RpcTransport,
 	schema: Record<string, MethodSchema>,
 	syncedFields?: SyncedFieldsMap,
+	eventsMap?: Record<
+		string,
+		{ payloadType: FieldType; envelopeCtor: Constructor<any> }
+	>,
 ): RpcProxy<T> {
 	let nextId = 1;
 	const pending = new Map<number, Pending>();
@@ -495,6 +499,59 @@ export function createRpcProxy<T extends object>(
 		});
 	}
 
+	// Simple typed EventTarget implementation for client side
+	class RpcEventEmitter<
+		EventMap extends Record<string, any>,
+	> extends EventTarget {
+		#listeners = new Map<string, { once: boolean; cb: any }[]>();
+		listenerCount(type: string): number {
+			return this.#listeners.get(type)?.length ?? 0;
+		}
+		override addEventListener(
+			type: string,
+			listener: any,
+			options?: boolean | AddEventListenerOptions,
+		): void {
+			super.addEventListener(type, listener, options as any);
+			const list = this.#listeners.get(type) ?? [];
+			list.push({
+				cb: listener,
+				once:
+					(options !== true && options !== false && (options as any)?.once) ??
+					false,
+			});
+			this.#listeners.set(type, list);
+		}
+		override removeEventListener(
+			type: string,
+			listener?: any,
+			options?: boolean | EventListenerOptions,
+		): void {
+			super.removeEventListener(type, listener as any, options as any);
+			const list = this.#listeners.get(type);
+			if (!list) return;
+			this.#listeners.set(
+				type,
+				list.filter((l) => l.cb !== listener),
+			);
+		}
+		override dispatchEvent(event: Event): boolean {
+			const ok = super.dispatchEvent(event);
+			const list = this.#listeners.get(event.type);
+			if (list)
+				this.#listeners.set(
+					event.type,
+					list.filter((l) => !l.once),
+				);
+			return ok;
+		}
+		safeDispatchEvent<Detail>(type: string, detail?: CustomEventInit<Detail>) {
+			return this.dispatchEvent(new CustomEvent(type, detail));
+		}
+	}
+
+	const eventEmitters = new Map<string, InstanceType<any>>();
+
 	function makeProxy(prefix: string): any {
 		const handler: ProxyHandler<any> = {
 			get(_target, prop) {
@@ -505,6 +562,34 @@ export function createRpcProxy<T extends object>(
 					k.startsWith(full + "."),
 				);
 				const isSynced = !!syncedFields && !!(syncedFields as any)[full];
+				const isEventHost = !!eventsMap && !!(eventsMap as any)[full];
+				if (isEventHost) {
+					let emitter = eventEmitters.get(full);
+					if (!emitter) {
+						emitter = new RpcEventEmitter<any>();
+						eventEmitters.set(full, emitter);
+						// Start consuming the stream
+						(async () => {
+							try {
+								const it = callUnary(
+									`$events:${full}`,
+									undefined,
+									{ stream: (eventsMap as any)[full].envelopeCtor } as any,
+									[],
+								) as AsyncIterable<any>;
+								for await (const env of it) {
+									(emitter as any).dispatchEvent(
+										new CustomEvent(env.type, { detail: env.detail }),
+									);
+								}
+							} catch (_) {
+								// stream ended or errored; will restart on next access if needed
+								eventEmitters.delete(full);
+							}
+						})();
+					}
+					return emitter;
+				}
 				if (isSynced) {
 					const type = (syncedFields as any)[full].type as FieldType;
 					return {
@@ -793,12 +878,14 @@ export const RPC_SCHEMA_KEY: unique symbol = Symbol.for("borsh-ts.rpc.schema");
 export const RPC_CHILDREN_KEY: unique symbol = Symbol.for(
 	"borsh-ts.rpc.children",
 );
+export const RPC_EVENTS_KEY: unique symbol = Symbol.for("borsh-ts.rpc.events");
 
 export type RpcDecoratedCtor<T extends object = any> = (new (
 	...args: any[]
 ) => T) & {
 	[RPC_SCHEMA_KEY]?: RpcSchema<T>;
 	[RPC_CHILDREN_KEY]?: Record<string, RpcDecoratedCtor<any>>;
+	[RPC_EVENTS_KEY]?: Record<string, FieldType>;
 	createProxy?: (transport: RpcTransport) => T;
 	bind?: (transport: RpcTransport, instance?: T) => () => void;
 	Proxy?: new (transport: RpcTransport) => T;
@@ -837,6 +924,20 @@ export function subservice(
 	};
 }
 
+// Event decorator: marks a property as an event emitter host.
+// payloadType is the borsh FieldType for CustomEvent.detail
+export function events(payloadType: FieldType): PropertyDecorator {
+	return (target: any, propertyKey: string | symbol) => {
+		const ctor = target.constructor as RpcDecoratedCtor<any>;
+		const key = String(propertyKey);
+		const evs = ((ctor as any)[RPC_EVENTS_KEY] ??= {} as Record<
+			string,
+			FieldType
+		>);
+		evs[key] = payloadType;
+	};
+}
+
 function getLocalSynced(
 	ctor: RpcDecoratedCtor<any>,
 ): Record<string, FieldType> | undefined {
@@ -849,6 +950,10 @@ function flattenSchema(
 	ctor: RpcDecoratedCtor<any>,
 	prefix = "",
 	collectSynced?: SyncedFieldsMap,
+	collectEvents?: Record<
+		string,
+		{ payloadType: FieldType; envelopeCtor: Constructor<any> }
+	>,
 ): Record<string, MethodSchema> {
 	const flat: Record<string, MethodSchema> = {};
 	const local = (ctor as any)[RPC_SCHEMA_KEY] as RpcSchema<any> | undefined;
@@ -865,6 +970,19 @@ function flattenSchema(
 			if (collectSynced) collectSynced[fq] = { type: t };
 		}
 	}
+	// Attach event streams for properties marked with @events
+	const evs = (ctor as any)[RPC_EVENTS_KEY] as
+		| Record<string, FieldType>
+		| undefined;
+	if (evs) {
+		for (const [k, t] of Object.entries(evs)) {
+			const fq = prefix + k;
+			const Envelope = makeEventEnvelopeType(t);
+			flat[`$events:${fq}`] = { returns: { stream: Envelope } as any };
+			if (collectEvents)
+				collectEvents[fq] = { payloadType: t, envelopeCtor: Envelope as any };
+		}
+	}
 	const children = (ctor as any)[RPC_CHILDREN_KEY] as
 		| Record<string, RpcDecoratedCtor<any>>
 		| undefined;
@@ -874,6 +992,7 @@ function flattenSchema(
 				child,
 				prefix + name + ".",
 				collectSynced,
+				collectEvents,
 			);
 			Object.assign(flat, childFlat);
 		}
@@ -920,14 +1039,19 @@ export function service<TBase extends new (...args: any[]) => any>(): <
 		// Static createProxy
 		c.createProxy = (transport: RpcTransport) => {
 			const synced: SyncedFieldsMap = {};
-			const flat = flattenSchema(c, "", synced);
-			return createRpcProxy(transport, flat, synced) as any;
+			const events: Record<
+				string,
+				{ payloadType: FieldType; envelopeCtor: Constructor<any> }
+			> = {};
+			const flat = flattenSchema(c, "", synced, events);
+			return createRpcProxy(transport, flat, synced, events) as any;
 		};
 		// Static bind helper
 		c.bind = (transport: RpcTransport, instance?: any) => {
 			const inst = instance ?? new (c as any)();
 			ensureChildInstances(inst, c);
 			attachSyncedHandlers(inst, c);
+			attachEventHandlers(inst, c);
 			const synced: SyncedFieldsMap = {};
 			const flat = flattenSchema(c, "", synced);
 			return bindRpcReceiver(inst, transport, flat);
@@ -937,8 +1061,12 @@ export function service<TBase extends new (...args: any[]) => any>(): <
 			[c.name + "Proxy"]: class {
 				constructor(t: RpcTransport) {
 					const synced: SyncedFieldsMap = {};
-					const flat = flattenSchema(c, "", synced);
-					return createRpcProxy(t, flat, synced) as any;
+					const events: Record<
+						string,
+						{ payloadType: FieldType; envelopeCtor: Constructor<any> }
+					> = {};
+					const flat = flattenSchema(c, "", synced, events);
+					return createRpcProxy(t, flat, synced, events) as any;
 				}
 			},
 		} as any;
@@ -963,8 +1091,12 @@ export function createProxyFromService<C extends new (...args: any[]) => any>(
 	transport: RpcTransport,
 ): RpcProxy<InstanceType<C>> {
 	const synced: SyncedFieldsMap = {};
-	const flat = flattenSchema(ctor as any, "", synced);
-	return createRpcProxy(transport, flat, synced) as any;
+	const events: Record<
+		string,
+		{ payloadType: FieldType; envelopeCtor: Constructor<any> }
+	> = {};
+	const flat = flattenSchema(ctor as any, "", synced, events);
+	return createRpcProxy(transport, flat, synced, events) as any;
 }
 
 export function bindService<C extends new (...args: any[]) => any>(
@@ -975,6 +1107,7 @@ export function bindService<C extends new (...args: any[]) => any>(
 	const inst = (instance ?? new ctor()) as any;
 	ensureChildInstances(inst, ctor as any);
 	attachSyncedHandlers(inst, ctor as any);
+	attachEventHandlers(inst, ctor as any);
 	const synced: SyncedFieldsMap = {};
 	const flat = flattenSchema(ctor as any, "", synced);
 	return bindRpcReceiver(inst, transport, flat);
@@ -1030,6 +1163,88 @@ function attachSyncedHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
 	if (children) {
 		for (const [name, child] of Object.entries(children)) {
 			if (instance[name]) attachSyncedHandlers(instance[name], child);
+		}
+	}
+}
+
+// ---- Events support ----
+
+function makeEventEnvelopeType(payloadType: FieldType): Constructor<any> {
+	class EventEnvelope {
+		@field({ type: "string" }) type: string;
+		@field({ type: payloadType as any }) detail: any;
+		constructor(type?: string, detail?: any) {
+			this.type = type as any;
+			this.detail = detail;
+		}
+	}
+	return EventEnvelope as any;
+}
+
+const SYNC_EVENT_WATCHERS: unique symbol = Symbol.for(
+	"borsh-ts.rpc.events.watchers",
+);
+function attachEventHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
+	const evs = (ctor as any)[RPC_EVENTS_KEY] as
+		| Record<string, FieldType>
+		| undefined;
+	if (evs) {
+		if (!instance[SYNC_EVENT_WATCHERS])
+			instance[SYNC_EVENT_WATCHERS] = new Map<string, Set<AsyncQueue<any>>>();
+		const watchers: Map<string, Set<AsyncQueue<any>>> = instance[
+			SYNC_EVENT_WATCHERS
+		];
+		for (const [prop, payloadType] of Object.entries(evs)) {
+			// Ensure property exists
+			const emitter: any = instance[prop];
+			if (!emitter || typeof emitter.dispatchEvent !== "function") {
+				// Create a minimal EventTarget-compatible emitter if missing
+				instance[prop] = new (class extends (globalThis as any)
+					.EventTarget {})();
+			}
+			const key = prop;
+			const Envelope = makeEventEnvelopeType(payloadType);
+			const watchName = `$events:${prop}`;
+			if (typeof instance[watchName] !== "function") {
+				Object.defineProperty(instance, watchName, {
+					value: () => {
+						const q = new AsyncQueue<any>();
+						let set = watchers.get(key);
+						if (!set) {
+							set = new Set();
+							watchers.set(key, set);
+						}
+						set.add(q);
+						return q as AsyncIterable<any>;
+					},
+				});
+			}
+			// Patch dispatchEvent once to fan-out events to watchers
+			const host: any = instance[prop];
+			if (!host.__rpcEventsPatched) {
+				host.__rpcEventsPatched = true;
+				const orig = host.dispatchEvent.bind(host);
+				host.dispatchEvent = (event: Event) => {
+					try {
+						const set = watchers.get(key);
+						if (set && (event as any).type) {
+							const detail = (event as any).detail;
+							// forward as envelope
+							for (const q of set)
+								q.enqueue(new (Envelope as any)((event as any).type, detail));
+						}
+					} catch {}
+					return orig(event);
+				};
+			}
+		}
+	}
+	const children = (ctor as any)[RPC_CHILDREN_KEY] as
+		| Record<string, RpcDecoratedCtor<any>>
+		| undefined;
+	if (children) {
+		for (const [name, child] of Object.entries(children)) {
+			if (instance[name]) attachEventHandlers(instance[name], child);
 		}
 	}
 }
