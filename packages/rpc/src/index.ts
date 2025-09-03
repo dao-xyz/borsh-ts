@@ -2391,3 +2391,11 @@ export function fnRef(
 ): FieldType {
 	return new FnRefKind(args, returns) as unknown as FieldType;
 }
+
+// Friendly aliases
+export function ctor(_ctorOrProto: Constructor<any> | object): FieldType {
+	return ctorRef(_ctorOrProto);
+}
+export function fn(args?: FieldType | FieldType[], returns?: MethodSchema["returns"]): FieldType {
+	return fnRef(args, returns);
+}

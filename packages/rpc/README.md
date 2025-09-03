@@ -270,24 +270,25 @@ You can pass a constructor reference or a function (callback) across the RPC bou
 Constructors used in method schemas are auto-detected and registered per connection. You generally don’t need to declare `dependencies`; it’s optional as a fallback when auto-detection isn’t possible.
 
 ```ts
-import { ctorRef, fnRef, method, service } from "@dao-xyz/borsh-rpc";
+import { ctor, fn, method, service } from "@dao-xyz/borsh-rpc";
 
 class L { constructor(public n: number) {} }
 
 @service()
 class API {
 	// Pass a constructor reference; server returns its registered name
-	@method({ args: ctorRef(L), returns: "string" })
+		@method({ args: ctor(L), returns: "string" })
 	ctorName(_c: new (...a: any[]) => any) { return "L"; }
 
 	// Pass a callback; server calls it and returns the result
-	@method({ args: [fnRef(["u32"], "u32")], returns: "u32" })
+		@method({ args: [fn(["u32"], "u32")], returns: "u32" })
 	call(cb: (x: number) => number) { return cb(7); }
 }
 ```
 
 Notes and constraints:
 - Constructors referenced by your method schemas (including within unions/structs/fnRef args/returns) are auto-registered from the schema. If you need to force-register extras, you can still use `@service({ dependencies })`.
+ - The helpers `ctor` and `fn` are aliases for `ctorRef` and `fnRef` for brevity; the original names continue to work.
 - Callback results can be:
 	- `void` (use returns: "void"),
 	- a value (provide a FieldType for `returns`),
