@@ -32,7 +32,8 @@ jobs:
         if: ${{ steps.release.outputs.releases_created == 'true' }}
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # ensure tags/commits are available for tooling like lerna
+          fetch-depth: 0 # ensure full history is available for tooling like lerna
+          fetch-tags: true # ensure tags created by release-please are present locally
       - name: Setup Node
         uses: actions/setup-node@v4
         if: ${{ steps.release.outputs.releases_created == 'true' }}
