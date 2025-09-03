@@ -1,4 +1,4 @@
 {
 	"packages/borsh": "5.2.4",
-	"packages/rpc": "1.2.0"
+	"packages/rpc": "1.3.0"
 }

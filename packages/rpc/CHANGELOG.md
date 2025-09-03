@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.2.0...@dao-xyz/borsh-rpc-v1.3.0) (2025-09-03)
+
+
+### Features
+
+* functional arguments ([4fefc67](https://github.com/dao-xyz/borsh-ts/commit/4fefc671d9f6138b8bd53b8a35a1f8c5675ac276))
+
+
+### Bug Fixes
+
+* fmt ([d608027](https://github.com/dao-xyz/borsh-ts/commit/d608027302aff6aded7ebf868ea9ef286dee7f46))
+* shorter names for ctor and fn args ([4e187d1](https://github.com/dao-xyz/borsh-ts/commit/4e187d12b031227df2ecfa0e438b6226d1f5388b))
+
 ## [1.2.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.1.0...@dao-xyz/borsh-rpc-v1.2.0) (2025-09-03)
 
 
