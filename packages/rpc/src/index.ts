@@ -2396,6 +2396,9 @@ export function fnRef(
 export function ctor(_ctorOrProto: Constructor<any> | object): FieldType {
 	return ctorRef(_ctorOrProto);
 }
-export function fn(args?: FieldType | FieldType[], returns?: MethodSchema["returns"]): FieldType {
+export function fn(
+	args?: FieldType | FieldType[],
+	returns?: MethodSchema["returns"],
+): FieldType {
 	return fnRef(args, returns);
 }
