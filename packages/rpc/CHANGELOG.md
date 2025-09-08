@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.3.1...@dao-xyz/borsh-rpc-v1.4.0) (2025-09-08)
+
+
+### Features
+
+* add support for dynamic subservice references and enhance RPC proxy functionality ([313e16d](https://github.com/dao-xyz/borsh-ts/commit/313e16d83edc991c4a52754b16ef643015d0ce7b))
+
 ## [1.3.1](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.3.0...@dao-xyz/borsh-rpc-v1.3.1) (2025-09-03)
 
 
