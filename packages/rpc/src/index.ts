@@ -49,6 +49,9 @@ type CodecCtx = {
 	>;
 	nextFnId: number;
 	transport?: RpcTransport;
+	// Dynamic subservice references
+	subRefById?: Map<number, { instance: any; flat: Record<string, MethodSchema> }>;
+	nextSubRefId?: number;
 };
 let CURRENT_CODEC_CTX: CodecCtx | undefined;
 function withCodecCtx<T>(ctx: CodecCtx | undefined, fn: () => T): T {
@@ -188,7 +191,7 @@ class AsyncQueue<T> implements AsyncIterable<T> {
 // Borsh-encoded message frames
 // Using decorated classes to keep encoding consistent with the library
 
-abstract class Message {}
+abstract class Message { }
 
 class RequestHeader {
 	@field({ type: "u32" }) id: number;
@@ -294,6 +297,10 @@ function normalizeFieldTypeRef(t: any): FieldType {
 	return t as FieldType;
 }
 
+function isServiceConstructor(x: any): x is RpcDecoratedCtor<any> {
+	return !!x && typeof x === "function" && !!(x as any)[RPC_SCHEMA_KEY];
+}
+
 // ---- Struct FieldType (plain object shape at RPC layer) ----
 class StructKind {
 	kind = "struct" as const;
@@ -346,6 +353,7 @@ function writeField(value: any, type: FieldType, writer: BinaryWriter) {
 		writer.u32(id);
 		return;
 	}
+	// Subservice reference kind (not used for encoding; refs are auto-detected on returns)
 	// Tagged union support
 	if (isUnionKind(type)) {
 		const u = type as UnionKindImpl;
@@ -544,19 +552,19 @@ function readField(reader: BinaryReader, type: FieldType): any {
 // Type helpers to make proxies always async
 export type AsyncifyFunction<F> = F extends (...args: infer A) => infer R
 	? (
-			...args: A
-		) => R extends AsyncIterable<infer U>
-			? AsyncIterable<U>
-			: R extends Iterable<infer U>
-				? AsyncIterable<U>
-				: Promise<Awaited<R>>
+		...args: A
+	) => R extends AsyncIterable<infer U>
+		? AsyncIterable<U>
+		: R extends Iterable<infer U>
+		? AsyncIterable<U>
+		: Promise<Awaited<R>>
 	: never;
 
 export type Asyncify<T> = T extends (...args: any) => any
 	? AsyncifyFunction<T>
 	: T extends object
-		? { [K in keyof T]: Asyncify<T[K]> }
-		: T;
+	? { [K in keyof T]: Asyncify<T[K]> }
+	: T;
 
 // Synced field accessor surface
 export type SyncedAccessor<T> = {
@@ -578,27 +586,27 @@ type IsPrimitive<T> = T extends Primitive ? true : false;
 // - non-function object keys => nested RpcProxy
 export type RpcProxy<T> = {
 	[K in keyof T as T[K] extends (...args: any) => any
-		? K
-		: never]: AsyncifyFunction<T[K]>;
+	? K
+	: never]: AsyncifyFunction<T[K]>;
 } & {
 	[K in keyof T as T[K] extends (...args: any) => any ? never : K]: IsPrimitive<
 		T[K]
 	> extends true
-		? SyncedAccessor<T[K]>
-		: RpcProxy<T[K]>;
+	? SyncedAccessor<T[K]>
+	: RpcProxy<T[K]>;
 };
 
 // Compile-time assertion helpers
 type IsAsyncReturn<R> =
 	R extends Promise<any>
-		? true
-		: R extends AsyncIterable<any> | Iterable<any>
-			? true
-			: false;
+	? true
+	: R extends AsyncIterable<any> | Iterable<any>
+	? true
+	: false;
 export type MustBeAsync<F> = F extends (...args: any) => infer R
 	? IsAsyncReturn<R> extends true
-		? F
-		: never
+	? F
+	: never
 	: F;
 export type AssertServiceAsync<T> = {
 	[K in keyof T as T[K] extends (...args: any) => any ? K : never]: MustBeAsync<
@@ -633,6 +641,7 @@ export function createRpcProxy<T extends object>(
 	>,
 	presenceMap?: Record<string, { settable: boolean }>,
 	registries?: { ctors?: Record<string, Constructor<any>> },
+	basePrefix?: string,
 ): RpcProxy<T> {
 	let nextId = 1;
 	const pending = new Map<number, Pending>();
@@ -781,6 +790,38 @@ export function createRpcProxy<T extends object>(
 		}
 		if (msg instanceof Ok) {
 			const { id, method } = msg.header;
+			// Special case: subservice reference return envelopes method as "$refret:<id>:<ctorName>"
+			if (typeof method === "string" && method.startsWith("$refret:")) {
+				const parts = method.split(":");
+				const refId = Number(parts[1]);
+				const ctorName = parts[2];
+				const p = pending.get(id);
+				if (p) {
+					try {
+						const ctor = codecCtx.ctorByName.get(String(ctorName));
+						if (!ctor) throw new Error(`Unknown subservice ctor '${String(ctorName)}'`);
+						const synced: SyncedFieldsMap = {};
+						const events: Record<string, { payloadType: FieldType; envelopeCtor: Constructor<any> }> = {} as Record<string, { payloadType: FieldType; envelopeCtor: Constructor<any> }>;
+						const presence: Record<string, { settable: boolean }> = {} as Record<string, { settable: boolean }>;
+						const flat = flattenSchema(ctor as any, `$ref:${refId}.`, synced, events, presence);
+						const ctorsObj = Object.fromEntries(Array.from(codecCtx.ctorByName.entries()) as [string, Constructor<any>][][][number]);
+						const childProxy = createRpcProxy<any>(
+							transport,
+							flat,
+							synced,
+							events,
+							presence,
+							{ ctors: ctorsObj },
+							`$ref:${refId}.`,
+						);
+						p.resolve(childProxy);
+					} catch (e) {
+						p.reject(e);
+					}
+					pending.delete(id);
+				}
+				return;
+			}
 			const p = pending.get(id);
 			if (!p) return;
 			try {
@@ -986,7 +1027,7 @@ export function createRpcProxy<T extends object>(
 													for (const fn of Array.from(subs))
 														try {
 															(fn as any)(v);
-														} catch {}
+														} catch { }
 											}
 										} catch {
 										} finally {
@@ -1086,7 +1127,7 @@ export function createRpcProxy<T extends object>(
 												for (const fn of Array.from(subs))
 													try {
 														fn(v);
-													} catch {}
+													} catch { }
 										}
 									} catch {
 										// stream ended or failed; we'll allow re-subscribe to restart
@@ -1124,7 +1165,7 @@ export function createRpcProxy<T extends object>(
 								for (const fn of Array.from(subs))
 									try {
 										fn(v);
-									} catch {}
+									} catch { }
 						},
 						watch: () =>
 							callUnary(
@@ -1180,7 +1221,7 @@ export function createRpcProxy<T extends object>(
 						for (const fn of Array.from(subs))
 							try {
 								fn(value);
-							} catch {}
+							} catch { }
 					return true;
 				}
 				// do not actually assign unknown props on the proxy
@@ -1190,7 +1231,7 @@ export function createRpcProxy<T extends object>(
 		return handler;
 	}
 
-	return new Proxy({}, makeProxy("")) as any;
+	return new Proxy({}, makeProxy(basePrefix ?? "")) as any;
 }
 
 export function bindRpcReceiver<T extends object>(
@@ -1225,7 +1266,7 @@ export function bindRpcReceiver<T extends object>(
 		if (!(msg instanceof Request)) return;
 		const { id, method } = msg.header;
 		const pr = new BinaryReader(msg.payload);
-		const spec = (schema as any)[method] as MethodSchema | undefined;
+		let spec = (schema as any)[method] as MethodSchema | undefined;
 		// Handle callback invocation
 		if (method.startsWith("$cb:")) {
 			const cbId = Number(method.slice(4));
@@ -1329,6 +1370,35 @@ export function bindRpcReceiver<T extends object>(
 			const prop = parts.pop() as string;
 			for (const p of parts) target = target?.[p];
 			funcName = `${op}:${prop}`;
+		} else if (method.startsWith("$ref:")) {
+			// Route to dynamic subservice reference
+			const idx = method.indexOf(".");
+			const idStr = method.slice(5, idx);
+			const tail = method.slice(idx + 1);
+			const idNum = Number(idStr);
+			const entry = (codecCtx.subRefById || new Map()).get(idNum);
+			if (!entry) {
+				const out = serialize(
+					new Err(new ResponseHeader(id, method), `Unknown subservice ref: ${idNum}`),
+				);
+				transport.send(out);
+				return;
+			}
+			spec = entry.flat[tail] as MethodSchema | undefined;
+			if (!spec) {
+				const out = serialize(
+					new Err(new ResponseHeader(id, method), `Unknown method: ${method}`),
+				);
+				transport.send(out);
+				return;
+			}
+			target = entry.instance;
+			funcName = tail;
+			if (tail.includes(".")) {
+				const parts = tail.split(".");
+				funcName = parts.pop() as string;
+				for (const p of parts) target = target?.[p];
+			}
 		} else if (method.includes(".")) {
 			const parts = method.split(".");
 			funcName = parts.pop() as string;
@@ -1402,17 +1472,40 @@ export function bindRpcReceiver<T extends object>(
 			if (spec.returns === undefined) {
 				return; // fire-and-forget
 			}
+			// Auto-detect returned subservice instance: if returns is a constructor and the value matches a @service-decorated class
+			let overrideHeader: ResponseHeader | undefined;
 			const payloadW = new BinaryWriter();
 			let payload: Uint8Array;
 			if (spec.returns === "void") {
 				payload = new Uint8Array(0);
+			} else if (
+				isServiceConstructor(spec.returns as any) &&
+				callResult &&
+				(callResult as any).constructor === (spec.returns as any)
+			) {
+				// Register subservice ref and return envelope with $refret
+				const ctorFn = spec.returns as any;
+				const ctorName = ctorFn.name;
+				const refId = (codecCtx.nextSubRefId = (codecCtx.nextSubRefId || 0) + 1);
+				if (!codecCtx.subRefById) codecCtx.subRefById = new Map();
+				// Ensure internal wiring for nested features
+				try {
+					ensureChildInstances(callResult, ctorFn as any);
+					attachSyncedHandlers(callResult, ctorFn as any);
+					attachEventHandlers(callResult, ctorFn as any);
+					attachLazyChildHooks(callResult, ctorFn as any);
+				} catch { }
+				const flat = flattenSchema(ctorFn as any, "");
+				codecCtx.subRefById.set(refId, { instance: callResult, flat });
+				payload = new Uint8Array(0);
+				overrideHeader = new ResponseHeader(id, `$refret:${refId}:${ctorName}`);
 			} else {
 				withCodecCtx(codecCtx, () =>
 					writeField(callResult, spec.returns as FieldType, payloadW),
 				);
 				payload = payloadW.finalize();
 			}
-			const out = serialize(new Ok(new ResponseHeader(id, method), payload));
+			const out = serialize(new Ok(overrideHeader ?? new ResponseHeader(id, method), payload));
 			transport.send(out);
 		} catch (e: any) {
 			const errMsg = String(e?.message || e);
@@ -1736,8 +1829,8 @@ function attachLazyChildHooks(instance: any, ctor: RpcDecoratedCtor<any>) {
 					try {
 						const r = typeof d === "function" ? d.call(prev) : undefined;
 						if (r && typeof r.then === "function")
-							(r as Promise<any>).catch(() => {});
-					} catch {}
+							(r as Promise<any>).catch(() => { });
+					} catch { }
 				}
 				store.set(name, v);
 				// notify presence watchers
@@ -1785,8 +1878,8 @@ function attachLazyChildHooks(instance: any, ctor: RpcDecoratedCtor<any>) {
 
 export function service<TBase extends new (...args: any[]) => any>(options?: {
 	dependencies?:
-		| Array<Constructor<any> | object>
-		| Record<string, Constructor<any> | object>;
+	| Array<Constructor<any> | object>
+	| Record<string, Constructor<any> | object>;
 }): <C extends TBase>(
 	ctor: C,
 ) => C & {
@@ -2339,7 +2432,7 @@ function attachEventHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
 			if (!emitter || typeof emitter.dispatchEvent !== "function") {
 				// Create a minimal EventTarget-compatible emitter if missing
 				instance[prop] = new (class extends (globalThis as any)
-					.EventTarget {})();
+					.EventTarget { })();
 			}
 			const key = prop;
 			const Envelope = makeEventEnvelopeType(payloadType);
@@ -2372,7 +2465,7 @@ function attachEventHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
 							for (const q of set)
 								q.enqueue(new (Envelope as any)((event as any).type, detail));
 						}
-					} catch {}
+					} catch { }
 					return orig(event);
 				};
 			}
