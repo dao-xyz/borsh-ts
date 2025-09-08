@@ -1,9 +1,7 @@
 {
 	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
 	"bootstrap-sha": "",
-	"plugins": [
-		"node-workspace"
-	],
+	"plugins": ["node-workspace"],
 	"release-type": "node",
 	"pull-request-title-pattern": "chore(${scope}): release ${component} ${version}",
 	"include-component-in-tag": true,
