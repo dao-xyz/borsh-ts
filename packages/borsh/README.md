@@ -29,7 +29,7 @@ npm install @dao-xyz/borsh
 or
 
 ```
-yarn add @dao-xyz/borsh
+pnpm add @dao-xyz/borsh
 ```
 
 ## Serializing and deserializing
@@ -372,19 +372,19 @@ validate([TestStruct]);
 Install dependencies:
 
 ```bash
-yarn install
+pnpm install
 ```
 
 Run tests:
 
 ```bash
-yarn test
+pnpm test
 ```
 
 Run linter
 
 ```bash
-yarn pretty
+pnpm pretty
 ```
 
 ## Benchmarks

@@ -20,6 +20,173 @@ export * from "./binary.js";
 export * from "./types.js";
 export * from "./error.js";
 
+// Ensure Symbol.metadata exists so that stage-3 decorators always receive a metadata bag.
+const symbolMetadataSymbol: symbol =
+	(Symbol as any).metadata ?? Symbol.for("Symbol.metadata");
+type MetadataRecord = Record<PropertyKey, any>;
+type MetadataFinalizer = (ctor: Function, metadata: MetadataRecord) => void;
+const STAGE3_FINALIZERS_SYMBOL = Symbol.for("@dao-xyz/stage3-finalizers");
+const metadataFinalizers: MetadataFinalizer[] = ((globalThis as any)[
+	STAGE3_FINALIZERS_SYMBOL
+] ??= []);
+const metadataValueStore = new WeakMap<Function, MetadataRecord>();
+
+const runMetadataFinalizers = (ctor: Function, metadata: MetadataRecord) => {
+	metadataValueStore.set(ctor, metadata);
+	for (const finalizer of metadataFinalizers) {
+		try {
+			finalizer(ctor, metadata);
+		} catch {}
+	}
+};
+
+if (!(Symbol as any).metadata) {
+	Object.defineProperty(Symbol, "metadata", {
+		configurable: true,
+		enumerable: false,
+		writable: true,
+		value: symbolMetadataSymbol,
+	});
+}
+const REQUIRES_VARIANT_FLAG = Symbol.for("@dao-xyz/borsh:requires-variant");
+const VARIANT_ALREADY_READ = Symbol.for("@dao-xyz/borsh:variant-read");
+const STAGE3_GUARD_FLAG = "__borsh_ts_rpc_stage_3_initialized";
+if (!(globalThis as any)[STAGE3_GUARD_FLAG]) {
+	const originalDefineProperty = Object.defineProperty;
+	Object.defineProperty = function (target: any, propertyKey: PropertyKey, attributes: any) {
+		if (
+			propertyKey === symbolMetadataSymbol &&
+			attributes &&
+			typeof target === "function" &&
+			attributes.value
+		) {
+			runMetadataFinalizers(target, attributes.value as MetadataRecord);
+		}
+		return originalDefineProperty(target, propertyKey, attributes);
+	};
+	Object.defineProperty(Function.prototype, symbolMetadataSymbol, {
+		configurable: true,
+		get() {
+			return metadataValueStore.get(this) as MetadataRecord | undefined;
+		},
+		set(value: MetadataRecord | undefined) {
+			if (value) {
+				runMetadataFinalizers(this, value);
+			} else {
+				metadataValueStore.delete(this);
+			}
+		},
+	});
+	(globalThis as any)[STAGE3_GUARD_FLAG] = true;
+}
+
+type Stage3DecoratorContext = {
+	kind: string;
+	name: string | symbol;
+	metadata?: Record<PropertyKey, any>;
+};
+
+type Stage3ClassDecoratorFn = <
+	T extends abstract new (...args: any) => any,
+>(
+	value: T,
+	context: ClassDecoratorContext<T>,
+) => T | void;
+type Stage3FieldDecoratorFn = (
+	value: undefined,
+	context: ClassFieldDecoratorContext<any, any>,
+) => void;
+type Stage3MethodDecoratorFn = (
+	value: (...args: any[]) => any,
+	context: ClassMethodDecoratorContext<any, any>,
+) => ((...args: any[]) => any) | void;
+
+type CompatibleClassDecorator = ClassDecorator & Stage3ClassDecoratorFn;
+type CompatibleFieldDecorator = PropertyDecorator & Stage3FieldDecoratorFn;
+type CompatibleMethodDecorator = MethodDecorator & Stage3MethodDecoratorFn;
+
+const BORSH_STAGE3_METADATA_KEY = Symbol.for("@dao-xyz/borsh:stage3-decorators");
+type DecoratorAction = (ctor: Function) => void;
+type DecoratorActionStore = { applied?: boolean; actions: DecoratorAction[] };
+
+function isStage3DecoratorContext(value: unknown): value is Stage3DecoratorContext {
+	return !!value && typeof value === "object" && typeof (value as any).kind === "string";
+}
+
+function getStage3MetadataStore(
+	context: Stage3DecoratorContext,
+): DecoratorActionStore {
+	let metadata = context.metadata;
+	if (!metadata) {
+		throw new BorshError(
+			"Stage-3 decorators require Symbol.metadata to be defined before class evaluation. Make sure @dao-xyz/borsh is imported prior to defining decorated classes.",
+		);
+	}
+	let store = Object.prototype.hasOwnProperty.call(
+		metadata,
+		BORSH_STAGE3_METADATA_KEY,
+	)
+		? (metadata[BORSH_STAGE3_METADATA_KEY] as DecoratorActionStore)
+		: undefined;
+	if (!store) {
+		store = { actions: [] };
+		Object.defineProperty(metadata, BORSH_STAGE3_METADATA_KEY, {
+			value: store,
+			enumerable: false,
+			configurable: true,
+			writable: true,
+		});
+	}
+	return store;
+}
+
+function scheduleStage3Decorator(
+	context: Stage3DecoratorContext,
+	action: DecoratorAction,
+) {
+	const store = getStage3MetadataStore(context);
+	store.actions.push(action);
+}
+
+
+metadataFinalizers.push((ctor, metadata) => {
+	const store = metadata[BORSH_STAGE3_METADATA_KEY] as
+		| DecoratorActionStore
+		| undefined;
+	if (!store || store.applied) return;
+	store.applied = true;
+	for (const action of store.actions) {
+		action(ctor);
+	}
+	store.actions.length = 0;
+});
+
+function applyStage3Decorators(ctor: Function) {
+	if (!symbolMetadataSymbol) return;
+	const chain: Function[] = [];
+	let current: any = ctor;
+	while (typeof current === "function" && current !== Function.prototype) {
+		chain.push(current);
+		current = Object.getPrototypeOf(current);
+	}
+	for (let i = chain.length - 1; i >= 0; i--) {
+		const c = chain[i];
+		const metadata = (c as any)[symbolMetadataSymbol] as
+			| Record<PropertyKey, any>
+			| undefined;
+		if (!metadata) continue;
+		const store = metadata[BORSH_STAGE3_METADATA_KEY] as
+			| DecoratorActionStore
+			| undefined;
+		if (!store || store.applied) continue;
+		store.applied = true;
+		for (const action of store.actions) {
+			action(c);
+		}
+		store.actions.length = 0;
+	}
+}
+
 /**
  * Code below is quite optimized for performance hence there will be some "wierd" looking .js
  * Overall, they way it works, is that each Schema is translated into one big callback function that can execute very efficiently multiple time
@@ -464,6 +631,7 @@ const clearDeserializeStructHandle = (
 			offset +
 			(fromBuffer ? MAX_PROTOTYPE_SEARCH : 0)
 	];
+
 const createDeserializeStructHandle = (
 	currClazz: Constructor<any>,
 	offset: number,
@@ -473,11 +641,13 @@ const createDeserializeStructHandle = (
 	reader: BinaryReader,
 	options?: DeserializeStructOptions,
 ) => any) => {
-	let handle: (
-		result: any,
-		reader: BinaryReader,
-		options?: DeserializeStructOptions,
-	) => any | undefined = undefined;
+	let handle:
+		| ((
+				result: any,
+				reader: BinaryReader,
+				options?: DeserializeStructOptions,
+		  ) => any)
+		| undefined = undefined;
 	let endHandle = (
 		result: any,
 		reader: BinaryReader,
@@ -495,25 +665,33 @@ const createDeserializeStructHandle = (
 	};
 	let structSchema = getSchema(currClazz, offset);
 	if (structSchema) {
-		if (offset === 0) {
-			let index = getVariantIndex(structSchema);
-			if (index != null) {
-				// It is an (stupid) enum, but we deserialize into its variant directly
-				// This means we should omit the variant index
-				if (typeof index === "number") {
-					handle = (_, reader, __) => {
-						reader._offset += 1; // read 1 u
-					};
-				} else if (Array.isArray(index)) {
-					handle = (_, reader, __) => {
-						reader._offset += (index as Array<any>).length; // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
-					};
-				} else {
-					// string
-					handle = (_, reader, __) => {
-						reader.string();
-					};
-				}
+		let index = getVariantIndex(structSchema);
+		if (index != null) {
+			if (typeof index === "number") {
+				handle = (_, reader, __) => {
+					if ((reader as any)[VARIANT_ALREADY_READ]) {
+						delete (reader as any)[VARIANT_ALREADY_READ];
+						return;
+					}
+					reader._offset += 1; // read 1 u
+				};
+			} else if (Array.isArray(index)) {
+				handle = (_, reader, __) => {
+					if ((reader as any)[VARIANT_ALREADY_READ]) {
+						delete (reader as any)[VARIANT_ALREADY_READ];
+						return;
+					}
+					reader._offset += (index as Array<any>).length; // read all u8's 1 u8 = 1 byte -> shift offset with 1*length
+				};
+			} else {
+				// string
+				handle = (_, reader, __) => {
+					if ((reader as any)[VARIANT_ALREADY_READ]) {
+						delete (reader as any)[VARIANT_ALREADY_READ];
+						return;
+					}
+					reader.string();
+				};
 			}
 		}
 
@@ -554,6 +732,9 @@ const createDeserializeStructHandle = (
 		let variantType: "string" | "number" | number | "undefined";
 		for (const [actualClazz, dependency] of dependencies) {
 			const variantIndex = getVariantIndex(dependency.schema);
+			if (variantIndex === undefined) {
+				continue;
+			}
 			let currentVariantType =
 				typeof variantIndex === "object"
 					? variantIndex.length
@@ -567,21 +748,36 @@ const createDeserializeStructHandle = (
 			}
 			variantToDepndency.push([variantIndex, actualClazz, dependency]);
 		}
-		if (variantType === "undefined") {
-			if (dependencies.size === 1) {
-				const dep = variantToDepndency[0];
-				return (result, reader, options) => {
-					handle && handle(result, reader, options);
-					return getCreateDeserializationHandle(
-						dep[1],
-						dep[2].offset,
-						fromBuffer,
-					)(result, reader, options);
-				};
-			} else
-				throw new BorshError(
-					`Failed to find class to deserialize to from ${currClazz.name}: but no variants are used which makes deserialization undeterministic`,
-				);
+		if (!variantToDepndency.length) {
+			const directDependencies = getDependencies(currClazz, offset);
+			if (directDependencies?.length) {
+				let candidate: Function | undefined = undefined;
+				let candidateDepth: number | undefined = undefined;
+				for (const dep of directDependencies) {
+					const depth = getOffset(dep);
+					if (candidateDepth === undefined || depth < candidateDepth) {
+						candidate = dep;
+						candidateDepth = depth;
+					} else if (depth === candidateDepth) {
+						candidate = undefined;
+					}
+				}
+				if (candidate && candidateDepth !== undefined) {
+					const depClazz = candidate;
+					const depOffset = candidateDepth;
+					return (result, reader, options) => {
+						handle && handle(result, reader, options);
+						return getCreateDeserializationHandle(
+							depClazz,
+							depOffset,
+							fromBuffer,
+						)(result, reader, options);
+					};
+				}
+			}
+			throw new BorshError(
+				`Failed to find class to deserialize to from ${currClazz.name}: but no variants are used which makes deserialization undeterministic`,
+			);
 		}
 
 		return (result, reader, options) => {
@@ -593,6 +789,7 @@ const createDeserializeStructHandle = (
 				let agg = reader.u8();
 				for (const dep of variantToDepndency) {
 					if (agg === dep[0]) {
+						(reader as any)[VARIANT_ALREADY_READ] = true;
 						return getCreateDeserializationHandle(
 							dep[1],
 							dep[2].offset,
@@ -604,6 +801,7 @@ const createDeserializeStructHandle = (
 				let variant = reader.string();
 				for (const dep of variantToDepndency) {
 					if (variant === dep[0]) {
+						(reader as any)[VARIANT_ALREADY_READ] = true;
 						return getCreateDeserializationHandle(
 							dep[1],
 							dep[2].offset,
@@ -625,6 +823,7 @@ const createDeserializeStructHandle = (
 							(value, index) => value === agg[index],
 						)
 					) {
+						(reader as any)[VARIANT_ALREADY_READ] = true;
 						return getCreateDeserializationHandle(
 							dep[1],
 							dep[2].offset,
@@ -672,7 +871,6 @@ const createDeserializeStructHandle = (
 		return endHandle;
 	}
 };
-
 const getOrCreateStructMeta = (clazz: any, offset: number): StructKind => {
 	let schema: StructKind = getSchema(clazz, offset);
 	if (!schema) {
@@ -742,26 +940,74 @@ const setDependencies = (
 export const getAllDependencies = (
 	ctor: Function,
 	offset: number,
+	visited: Set<Function> = new Set(),
 ): Map<Function, { schema: StructKind; offset: number }> | undefined => {
-	let existing = getDependencies(ctor, offset);
-	if (existing) {
-		let ret: Map<Function, { schema: StructKind; offset: number }> = new Map();
-		for (const v of existing) {
-			let schema = getSubMostSchema(v);
-			if (schema.fields.length > 0 || schema.variant != undefined) {
-				// non trivial
-				ret.set(v, { schema, offset: getOffset(v) });
-			} else {
-				// check recursively
-				let req = getAllDependencies(v, offset);
-				for (const [rv, rk] of req) {
-					ret.set(rv, rk);
-				}
+	if (visited.has(ctor)) {
+		return;
+	}
+	visited.add(ctor);
+	const existing = getDependencies(ctor, offset);
+	if (!existing) {
+		visited.delete(ctor);
+		return;
+	}
+	const ret = new Map<Function, { schema: StructKind; offset: number }>();
+	for (const v of existing) {
+		const schema = getSubMostSchema(v);
+		if (!schema) {
+			continue;
+		}
+		const variant = schema.variant;
+		const hasVariant = variant != undefined;
+		const hasVariantMarker = !!schema.variantMarker;
+		const hasFields = schema.fields.length > 0;
+		if (hasVariant || hasVariantMarker || hasFields) {
+			ret.set(v, { schema, offset: getOffset(v) });
+		}
+		if (!hasVariant && !hasVariantMarker && !hasFields) {
+			const nested = getAllDependencies(v, getOffset(v), visited);
+			if (nested) {
+				nested.forEach((value, key) => ret.set(key, value));
 			}
 		}
-		return ret;
 	}
+	visited.delete(ctor);
+	return ret.size ? ret : undefined;
 };
+
+const getVariantDependencies = (
+	ctor: Function,
+	offset: number,
+	visited: Set<Function> = new Set(),
+): Map<Function, { schema: StructKind; offset: number }> | undefined => {
+	if (visited.has(ctor)) {
+		return;
+	}
+	visited.add(ctor);
+	const existing = getDependencies(ctor, offset);
+	if (!existing) {
+		visited.delete(ctor);
+		return;
+	}
+	const ret = new Map<Function, { schema: StructKind; offset: number }>();
+	for (const v of existing) {
+		const schema = getSubMostSchema(v);
+		if (!schema) {
+			continue;
+		}
+		if (schema.variant != undefined || schema.variantMarker) {
+			ret.set(v, { schema, offset: getOffset(v) });
+			continue;
+		}
+		const nested = getVariantDependencies(v, getOffset(v), visited);
+		if (nested) {
+			nested.forEach((value, key) => ret.set(key, value));
+		}
+	}
+	visited.delete(ctor);
+	return ret.size ? ret : undefined;
+};
+
 
 const getDependenciesRecursively = (
 	ctor: Function,
@@ -788,9 +1034,24 @@ const setSchema = (ctor: Function, schemas: StructKind, offset: number) => {
 export const getSchema = (
 	ctor: Function,
 	offset: number = getOffset(ctor),
-): StructKind => ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + offset];
+): StructKind => {
+	applyStage3Decorators(ctor);
+	const schema = ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + offset];
+	if (
+		schema &&
+		offset === getOffset(ctor) &&
+		(ctor as any)[REQUIRES_VARIANT_FLAG] &&
+		!schema.variantMarker
+	) {
+		throw new BorshError(
+			`Class ${ctor.name} extends another decorated class and declares @field data but is missing a @variant() decorator.`,
+		);
+	}
+	return schema;
+};
 
 const getSubMostSchema = (ctor: Function): StructKind => {
+	applyStage3Decorators(ctor);
 	let last = undefined;
 	for (var i = 0; i < MAX_PROTOTYPE_SEARCH; i++) {
 		const curr = ctor.prototype[PROTOTYPE_SCHEMA_OFFSET + i];
@@ -824,20 +1085,42 @@ export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
  * @returns Schema decorator function for classes
  */
-export const variant = (index: number | number[] | string) => {
-	return (ctor: Function) => {
-		let offset = getOffset(ctor);
-		setDependencyToProtoType(ctor, offset);
-		let schemas = getOrCreateStructMeta(ctor, offset);
-		schemas.variant = index;
-
-		// clear deserialization handles for all dependencies since we might have made a dynamic import which breakes the deserialization path caches
-		for (const clazz of extendingClasses(ctor)) {
-			clearDeserializeStructHandle(clazz, 0, true);
-			clearDeserializeStructHandle(clazz, 0, false);
+export function variant(index?: number | number[] | string): Stage3ClassDecoratorFn;
+export function variant(index?: number | number[] | string): ClassDecorator;
+export function variant(
+	index?: number | number[] | string,
+): CompatibleClassDecorator {
+	const decorator = (targetOrCtor: Function, maybeContext?: any): any => {
+		if (isStage3DecoratorContext(maybeContext) && maybeContext.kind === "class") {
+			applyVariantDecorator(targetOrCtor, index);
+			return;
 		}
+		return applyVariantDecorator(targetOrCtor, index);
+	};
+	return decorator as CompatibleClassDecorator;
+}
 
-		// Check for variant conficts
+function applyVariantDecorator(
+	ctor: Function,
+	index?: number | number[] | string,
+) {
+	let offset = getOffset(ctor);
+	setDependencyToProtoType(ctor, offset);
+	let schemas = getOrCreateStructMeta(ctor, offset);
+	schemas.variantMarker = true;
+	if (index !== undefined) {
+		schemas.variant = index;
+	} else {
+		delete schemas.variant;
+	}
+	delete (ctor as any)[REQUIRES_VARIANT_FLAG];
+
+	for (const clazz of extendingClasses(ctor)) {
+		clearDeserializeStructHandle(clazz, 0, true);
+		clearDeserializeStructHandle(clazz, 0, false);
+	}
+
+	if (index !== undefined) {
 		for (let i = offset - 1; i >= 0; i--) {
 			const dependencies = getDependencies(ctor, i);
 			if (dependencies) {
@@ -858,7 +1141,9 @@ export const variant = (index: number | number[] | string) => {
 									index.every(
 										(value, index) =>
 											value === (otherVariant as number[])[index],
-									)))
+									)
+								)
+							)
 						) {
 							throw new BorshError(
 								`Variant of ${ctor.name}: ${JSON.stringify(index)} is the same as for ${dependency.name} which is not allowed (non-determinism)`,
@@ -869,65 +1154,94 @@ export const variant = (index: number | number[] | string) => {
 						getVariantIndex(getSchema(dependency, getOffset(dependency))) !=
 						null
 					) {
-						return; // No need to validate more
+						return;
 					}
 				}
 			}
 			if (getVariantIndex(getSchema(ctor, i)) != null) {
-				return; // No need to validate more
+				return;
 			}
 		}
-	};
-};
+	}
+}
+
 
 const getVariantIndex = (
-	schema: StructKind,
+	schema?: StructKind,
 ): number | number[] | string | undefined => {
-	return schema.variant;
+	return schema?.variant;
 };
 
 /**
  * @param properties, the properties of the field mapping to schema
  * @returns
  */
-export function field(properties: SimpleField | CustomField<any>) {
-	return (target: {} | any, name?: PropertyKey): any => {
-		const offset = getOffset(target.constructor);
-		setDependencyToProtoType(target.constructor, offset);
-		const schemas = getOrCreateStructMeta(target.constructor, offset);
-		const schema = schemas;
-		const key = name.toString();
+function applyFieldDecorator(
+	target: { constructor: Function },
+	name: PropertyKey | undefined,
+	properties: SimpleField | CustomField<any>,
+) {
+	const offset = getOffset(target.constructor);
+	setDependencyToProtoType(target.constructor, offset);
+	const schemas = getOrCreateStructMeta(target.constructor, offset);
+	const schema = schemas;
+	const key = name!.toString();
+	if (offset > 0) {
+		(target.constructor as any)[REQUIRES_VARIANT_FLAG] = true;
+	}
 
-		let field: Field = undefined;
-		if ((properties as SimpleField)["type"] != undefined) {
-			field = {
-				key,
-				type: (properties as SimpleField)["type"],
-			};
-		} else {
-			field = {
-				key,
-				type: properties as CustomField<any>,
-			};
+	let field: Field = undefined;
+	if ((properties as SimpleField)["type"] != undefined) {
+		field = {
+			key,
+			type: (properties as SimpleField)["type"],
+		};
+	} else {
+		field = {
+			key,
+			type: properties as CustomField<any>,
+		};
+	}
+	if (properties.index === undefined) {
+		schema.fields.push(field); // add to the end. This will make property decorator execution order define field order
+	} else {
+		if (schema.fields[properties.index]) {
+			throw new BorshError(
+				"Multiple fields defined at the same index: " +
+					properties.index +
+					", class: " +
+					target.constructor.name,
+			);
 		}
+		if (properties.index >= schema.fields.length) {
+			resize(schema.fields, properties.index + 1, undefined);
+		}
+		schema.fields[properties.index] = field;
+	}
+}
 
-		if (properties.index === undefined) {
-			schema.fields.push(field); // add to the end. This will make property decorator execution order define field order
-		} else {
-			if (schema.fields[properties.index]) {
-				throw new BorshError(
-					"Multiple fields defined at the same index: " +
-						properties.index +
-						", class: " +
-						target.constructor.name,
-				);
-			}
-			if (properties.index >= schema.fields.length) {
-				resize(schema.fields, properties.index + 1, undefined);
-			}
-			schema.fields[properties.index] = field;
+export function field(
+	properties: SimpleField | CustomField<any>,
+): Stage3FieldDecoratorFn;
+export function field(
+	properties: SimpleField | CustomField<any>,
+): PropertyDecorator;
+export function field(
+	properties: SimpleField | CustomField<any>,
+): CompatibleFieldDecorator {
+	const decorator = (
+		targetOrValue: {} | any,
+		nameOrContext?: PropertyKey | ClassFieldDecoratorContext<any, any>,
+	): any => {
+		if (isStage3DecoratorContext(nameOrContext)) {
+			scheduleStage3Decorator(nameOrContext, (ctor) =>
+				applyFieldDecorator(ctor.prototype, nameOrContext.name, properties),
+			);
+			return;
 		}
+		return applyFieldDecorator(targetOrValue, nameOrContext as PropertyKey, properties);
 	};
+	return decorator as CompatibleFieldDecorator;
 }
 
 /**
@@ -935,13 +1249,30 @@ export function field(properties: SimpleField | CustomField<any>) {
  * @param properties, the properties of the field mapping to schema
  * @returns
  */
-export function serializer() {
-	return function (target: any, propertyKey: string) {
-		const offset = getOffset(target.constructor);
-		const schemas = getOrCreateStructMeta(target.constructor, offset);
-		schemas.serializer = (obj, writer, serialize) =>
-			obj[propertyKey](writer, serialize);
+
+export function serializer(): Stage3MethodDecoratorFn;
+export function serializer(): MethodDecorator;
+export function serializer(): CompatibleMethodDecorator {
+	const decorator = function (
+		targetOrValue: any,
+		propertyKeyOrContext?: PropertyKey | ClassMethodDecoratorContext<any, any>,
+	) {
+		if (isStage3DecoratorContext(propertyKeyOrContext)) {
+			scheduleStage3Decorator(propertyKeyOrContext, (ctor) =>
+				applySerializerDecorator(ctor.prototype, propertyKeyOrContext.name),
+			);
+			return targetOrValue;
+		}
+		applySerializerDecorator(targetOrValue, propertyKeyOrContext as PropertyKey);
 	};
+	return decorator as CompatibleMethodDecorator;
+}
+
+function applySerializerDecorator(target: any, propertyKey: PropertyKey) {
+	const offset = getOffset(target.constructor);
+	const schemas = getOrCreateStructMeta(target.constructor, offset);
+	schemas.serializer = (obj, writer, serialize) =>
+		obj[propertyKey as keyof typeof obj](writer, serialize);
 }
 
 /**
@@ -972,32 +1303,34 @@ const validateIterator = (
 			if (!schema) {
 				return;
 			}
+			if (getOffset(v) > 0 && schema.fields.length > 0 && !schema.variantMarker) {
+				throw new BorshError(
+					`Class ${v.name} extends another decorated class and declares @field data but is missing a @variant() decorator.`,
+				);
+			}
 			schemas.set(v, schema);
 			visited.add(v.name);
 		});
 
 		let lastVariant: number | number[] | string = undefined;
-		let lastKey: Function = undefined;
-		getAllDependencies(clazz, getOffset(clazz))?.forEach((dependency, key) => {
-			if (!lastVariant) lastVariant = getVariantIndex(dependency.schema);
-			else if (
-				!validateVariantAreCompatible(
-					lastVariant,
-					getVariantIndex(dependency.schema),
-				)
-			) {
+		const variantDependencies = getVariantDependencies(clazz, 0);
+		variantDependencies?.forEach((dependency, key) => {
+			const variant = getVariantIndex(dependency.schema);
+			if (variant === undefined) {
+				return;
+			}
+			if (!lastVariant) lastVariant = variant;
+			else if (!validateVariantAreCompatible(lastVariant, variant)) {
 				throw new BorshError(
 					`Class ${key.name} is extended by classes with variants of different types. Expecting only one of number, number[] or string`,
 				);
 			}
-
-			if (lastKey != undefined && lastVariant == undefined) {
-				throw new BorshError(
-					`Classes inherit ${clazz} and are introducing new field without introducing variants. This leads to unoptimized deserialization`,
-				);
-			}
-			lastKey = key;
 		});
+		if (!variantDependencies?.size && getAllDependencies(clazz, 0)?.size) {
+			throw new BorshError(
+				`Classes inherit ${clazz} and are introducing new field without introducing variants. This leads to unoptimized deserialization`,
+			);
+		}
 
 		schemas.forEach((structSchema, clazz) => {
 			structSchema.fields.forEach((field) => {

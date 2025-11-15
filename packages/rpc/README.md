@@ -15,7 +15,7 @@ Lightweight RPC over Borsh-encoded messages with decorators and schema-driven pr
 ```bash
 npm install @dao-xyz/borsh @dao-xyz/borsh-rpc
 # or
-yarn add @dao-xyz/borsh @dao-xyz/borsh-rpc
+pnpm add @dao-xyz/borsh @dao-xyz/borsh-rpc
 ```
 
 ## Quick start

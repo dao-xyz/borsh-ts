@@ -19,6 +19,147 @@ import type {
 
 // Lightweight RPC over Borsh-encoded messages
 
+const rpcSymbolMetadataSymbol: symbol =
+	(Symbol as any).metadata ?? Symbol.for("Symbol.metadata");
+if (!(Symbol as any).metadata) {
+	Object.defineProperty(Symbol, "metadata", {
+		configurable: true,
+		enumerable: false,
+		writable: true,
+		value: rpcSymbolMetadataSymbol,
+	});
+}
+
+type Stage3MetadataFinalizer = (ctor: Function, metadata: Record<PropertyKey, any>) => void;
+const STAGE3_FINALIZERS_SYMBOL = Symbol.for("@dao-xyz/stage3-finalizers");
+const stage3Finalizers: Stage3MetadataFinalizer[] = ((globalThis as any)[
+	STAGE3_FINALIZERS_SYMBOL
+] ??= []);
+const STAGE3_GUARD_FLAG = "__borsh_ts_rpc_stage_3_initialized";
+if (!(globalThis as any)[STAGE3_GUARD_FLAG]) {
+	const originalDefineProperty = Object.defineProperty;
+	Object.defineProperty = function (target: any, propertyKey: PropertyKey, attributes: any) {
+		if (
+			propertyKey === rpcSymbolMetadataSymbol &&
+			attributes &&
+			typeof target === "function" &&
+			attributes.value
+		) {
+			for (const finalizer of stage3Finalizers) {
+				try {
+					finalizer(target, attributes.value as Record<PropertyKey, any>);
+				} catch {}
+			}
+		}
+		return originalDefineProperty(target, propertyKey, attributes);
+	};
+	(globalThis as any)[STAGE3_GUARD_FLAG] = true;
+}
+
+type RpcStage3DecoratorContext = {
+	kind: string;
+	name: string | symbol;
+	metadata?: Record<PropertyKey, any>;
+};
+
+type Stage3ClassDecoratorFn = <
+	T extends abstract new (...args: any) => any,
+>(
+	value: T,
+	context: ClassDecoratorContext<T>,
+) => T | void;
+type Stage3FieldDecoratorFn = (
+	value: undefined,
+	context: ClassFieldDecoratorContext<any, any>,
+) => void;
+type Stage3MethodDecoratorFn = (
+	value: (...args: any[]) => any,
+	context: ClassMethodDecoratorContext<any, any>,
+) => ((...args: any[]) => any) | void;
+
+type CompatibleClassDecorator = ClassDecorator & Stage3ClassDecoratorFn;
+type CompatibleFieldDecorator = PropertyDecorator & Stage3FieldDecoratorFn;
+type CompatibleMethodDecorator = MethodDecorator & Stage3MethodDecoratorFn;
+
+const RPC_STAGE3_METADATA_KEY = Symbol.for("borsh-ts.rpc.stage3-decorators");
+type RpcDecoratorAction = (ctor: Function) => void;
+type RpcDecoratorStore = { applied?: boolean; actions: RpcDecoratorAction[] };
+
+function isRpcStage3Context(value: unknown): value is RpcStage3DecoratorContext {
+	return !!value && typeof value === "object" && typeof (value as any).kind === "string";
+}
+
+function getRpcStage3Store(context: RpcStage3DecoratorContext): RpcDecoratorStore {
+	const metadata = context.metadata;
+	if (!metadata) {
+		throw new Error(
+			"Stage-3 decorators require Symbol.metadata to be defined before class evaluation. Ensure @dao-xyz/rpc is imported prior to defining decorated classes.",
+		);
+	}
+	let store = Object.prototype.hasOwnProperty.call(
+		metadata,
+		RPC_STAGE3_METADATA_KEY,
+	)
+		? (metadata[RPC_STAGE3_METADATA_KEY] as RpcDecoratorStore)
+		: undefined;
+	if (!store) {
+		store = { actions: [] };
+		Object.defineProperty(metadata, RPC_STAGE3_METADATA_KEY, {
+			value: store,
+			enumerable: false,
+			configurable: true,
+			writable: true,
+		});
+	}
+	return store;
+}
+
+function scheduleRpcStage3Action(
+	context: RpcStage3DecoratorContext,
+	action: RpcDecoratorAction,
+) {
+	const store = getRpcStage3Store(context);
+	store.actions.push(action);
+}
+
+stage3Finalizers.push((ctor, metadata) => {
+	const store = metadata[RPC_STAGE3_METADATA_KEY] as
+		| RpcDecoratorStore
+		| undefined;
+	if (!store || store.applied) return;
+	store.applied = true;
+	for (const action of store.actions) action(ctor);
+	store.actions.length = 0;
+});
+
+function applyRpcStage3Decorators(ctor: Function) {
+	if (!rpcSymbolMetadataSymbol) return;
+	const chain: Function[] = [];
+	let current: any = ctor;
+	while (typeof current === "function" && current !== Function.prototype) {
+		chain.push(current);
+		current = Object.getPrototypeOf(current);
+	}
+	for (let i = chain.length - 1; i >= 0; i--) {
+		const c = chain[i];
+		const metadata = (c as any)[rpcSymbolMetadataSymbol] as
+			| Record<PropertyKey, any>
+			| undefined;
+		if (!metadata) continue;
+		const store = metadata[RPC_STAGE3_METADATA_KEY] as
+			| RpcDecoratorStore
+			| undefined;
+		if (!store || store.applied) continue;
+		store.applied = true;
+		for (const action of store.actions) action(c);
+		store.actions.length = 0;
+	}
+}
+
+function ensureRpcDecoratorsApplied(ctor: Function) {
+	applyRpcStage3Decorators(ctor);
+}
+
 export interface RpcTransport {
 	send(data: Uint8Array): void;
 	onMessage(handler: (data: Uint8Array) => void): () => void; // returns unsubscribe
@@ -301,6 +442,7 @@ function normalizeFieldTypeRef(t: any): FieldType {
 }
 
 function isServiceConstructor(x: any): x is RpcDecoratedCtor<any> {
+	if (!!x && typeof x === "function") ensureRpcDecoratorsApplied(x);
 	return !!x && typeof x === "function" && !!(x as any)[RPC_SCHEMA_KEY];
 }
 
@@ -624,14 +766,44 @@ export const RPC_SYNC_FIELDS_KEY: unique symbol = Symbol.for(
 type SyncedFieldEntry = { type: FieldType };
 type SyncedFieldsMap = Record<string, SyncedFieldEntry>; // key is fully-qualified path when flattened
 
-export function syncedField(type: FieldType | object): PropertyDecorator {
-	return (target: any, propertyKey: string | symbol) => {
-		const ctor = target.constructor as RpcDecoratedCtor<any>;
-		const existing: Record<string, FieldType> = ((ctor as any)[
-			RPC_SYNC_FIELDS_KEY
-		] ??= {});
-		existing[String(propertyKey)] = normalizeFieldTypeRef(type) as FieldType;
+export function syncedField(
+	type: FieldType | object,
+): Stage3FieldDecoratorFn;
+export function syncedField(
+	type: FieldType | object,
+): PropertyDecorator;
+export function syncedField(
+	type: FieldType | object,
+): CompatibleFieldDecorator {
+	const decorator = (
+		targetOrValue: any,
+		propertyKeyOrContext?: PropertyKey | ClassFieldDecoratorContext<any, any>,
+	) => {
+		if (isRpcStage3Context(propertyKeyOrContext)) {
+			scheduleRpcStage3Action(propertyKeyOrContext, (ctor) =>
+				registerSyncedField(
+					ctor as RpcDecoratedCtor<any>,
+					propertyKeyOrContext.name,
+					type,
+				),
+			);
+			return targetOrValue;
+		}
+		const ctor = targetOrValue.constructor as RpcDecoratedCtor<any>;
+		registerSyncedField(ctor, propertyKeyOrContext as PropertyKey, type);
 	};
+	return decorator as CompatibleFieldDecorator;
+}
+
+function registerSyncedField(
+	ctor: RpcDecoratedCtor<any>,
+	propertyKey: PropertyKey,
+	type: FieldType | object,
+) {
+	const existing: Record<string, FieldType> = ((ctor as any)[
+		RPC_SYNC_FIELDS_KEY
+	] ??= {});
+	existing[String(propertyKey)] = normalizeFieldTypeRef(type) as FieldType;
 }
 
 export function createRpcProxy<T extends object>(
@@ -1609,6 +1781,7 @@ export type RpcDecoratedCtor<T extends object = any> = (new (
 function ensureSchema<T extends object>(
 	ctor: RpcDecoratedCtor<T>,
 ): RpcSchema<T> {
+	ensureRpcDecoratorsApplied(ctor);
 	const existing = (ctor as any)[RPC_SCHEMA_KEY] as RpcSchema<T> | undefined;
 	if (existing) return existing;
 	const created: RpcSchema<T> = {} as any;
@@ -1675,48 +1848,124 @@ function normalizeMethodSpec(
 export function method(
 	argsOrSpec: MethodSchema | FieldType | FieldType[] | undefined,
 	returnsMaybe?: MethodSchema["returns"],
-): MethodDecorator {
+): Stage3MethodDecoratorFn;
+export function method(
+	argsOrSpec: MethodSchema | FieldType | FieldType[] | undefined,
+	returnsMaybe?: MethodSchema["returns"],
+): MethodDecorator;
+export function method(
+	argsOrSpec: MethodSchema | FieldType | FieldType[] | undefined,
+	returnsMaybe?: MethodSchema["returns"],
+): CompatibleMethodDecorator {
 	const spec = normalizeMethodSpec(argsOrSpec as any, returnsMaybe);
-	return (target: any, propertyKey: string | symbol) => {
-		const ctor = target.constructor as RpcDecoratedCtor<any>;
+	const decorator = (
+		targetOrValue: any,
+		propertyKeyOrContext?: PropertyKey | ClassMethodDecoratorContext<any, any>,
+	) => {
+		if (isRpcStage3Context(propertyKeyOrContext)) {
+			scheduleRpcStage3Action(propertyKeyOrContext, (ctor) => {
+				const schema = ensureSchema(ctor as RpcDecoratedCtor<any>);
+				schema[String(propertyKeyOrContext.name)] = spec;
+			});
+			return targetOrValue;
+		}
+		const ctor = targetOrValue.constructor as RpcDecoratedCtor<any>;
 		const schema = ensureSchema(ctor);
-		schema[String(propertyKey)] = spec;
+		schema[String(propertyKeyOrContext as PropertyKey)] = spec;
 	};
+	return decorator as CompatibleMethodDecorator;
 }
 
 export function subservice(
 	childCtor: RpcDecoratedCtor<any> | object,
 	options?: { lazy?: boolean },
-): PropertyDecorator {
-	return (target: any, propertyKey: string | symbol) => {
-		const ctor = target.constructor as RpcDecoratedCtor<any>;
-		const key = String(propertyKey);
-		const children = (ctor[RPC_CHILDREN_KEY] ??= {} as Record<
-			string,
-			ChildMeta
-		>);
-		const childCtorNorm = normalizeCtor(childCtor) as RpcDecoratedCtor<any>;
-		children[key] = { ctor: childCtorNorm, lazy: options?.lazy };
+): Stage3FieldDecoratorFn;
+export function subservice(
+	childCtor: RpcDecoratedCtor<any> | object,
+	options?: { lazy?: boolean },
+): PropertyDecorator;
+export function subservice(
+	childCtor: RpcDecoratedCtor<any> | object,
+	options?: { lazy?: boolean },
+): CompatibleFieldDecorator {
+	const decorator = (
+		targetOrValue: any,
+		propertyKeyOrContext?: PropertyKey | ClassFieldDecoratorContext<any, any>,
+	) => {
+		if (isRpcStage3Context(propertyKeyOrContext)) {
+			scheduleRpcStage3Action(propertyKeyOrContext, (ctor) =>
+				registerSubservice(
+					ctor as RpcDecoratedCtor<any>,
+					propertyKeyOrContext.name,
+					childCtor,
+					options,
+				),
+			);
+			return;
+		}
+		const ctor = targetOrValue.constructor as RpcDecoratedCtor<any>;
+		registerSubservice(ctor, propertyKeyOrContext as PropertyKey, childCtor, options);
 	};
+	return decorator as CompatibleFieldDecorator;
+}
+
+function registerSubservice(
+	ctor: RpcDecoratedCtor<any>,
+	propertyKey: PropertyKey,
+	childCtor: RpcDecoratedCtor<any> | object,
+	options?: { lazy?: boolean },
+) {
+	const key = String(propertyKey);
+	const children = (ctor[RPC_CHILDREN_KEY] ??= {} as Record<string, ChildMeta>);
+	const childCtorNorm = normalizeCtor(childCtor) as RpcDecoratedCtor<any>;
+	children[key] = { ctor: childCtorNorm, lazy: options?.lazy };
 }
 
 // Event decorator: marks a property as an event emitter host.
 // payloadType is the borsh FieldType for CustomEvent.detail
-export function events(payloadType: FieldType | object): PropertyDecorator {
-	return (target: any, propertyKey: string | symbol) => {
-		const ctor = target.constructor as RpcDecoratedCtor<any>;
-		const key = String(propertyKey);
-		const evs = ((ctor as any)[RPC_EVENTS_KEY] ??= {} as Record<
-			string,
-			FieldType
-		>);
-		evs[key] = normalizeFieldTypeRef(payloadType) as FieldType;
+export function events(
+	payloadType: FieldType | object,
+): Stage3FieldDecoratorFn;
+export function events(
+	payloadType: FieldType | object,
+): PropertyDecorator;
+export function events(
+	payloadType: FieldType | object,
+): CompatibleFieldDecorator {
+	const decorator = (
+		targetOrValue: any,
+		propertyKeyOrContext?: PropertyKey | ClassFieldDecoratorContext<any, any>,
+	) => {
+		if (isRpcStage3Context(propertyKeyOrContext)) {
+			scheduleRpcStage3Action(propertyKeyOrContext, (ctor) =>
+				registerEventField(
+					ctor as RpcDecoratedCtor<any>,
+					propertyKeyOrContext.name,
+					payloadType,
+				),
+			);
+			return;
+		}
+		const ctor = targetOrValue.constructor as RpcDecoratedCtor<any>;
+		registerEventField(ctor, propertyKeyOrContext as PropertyKey, payloadType);
 	};
+	return decorator as CompatibleFieldDecorator;
+}
+
+function registerEventField(
+	ctor: RpcDecoratedCtor<any>,
+	propertyKey: PropertyKey,
+	payloadType: FieldType | object,
+) {
+	const key = String(propertyKey);
+	const evs = ((ctor as any)[RPC_EVENTS_KEY] ??= {} as Record<string, FieldType>);
+	evs[key] = normalizeFieldTypeRef(payloadType) as FieldType;
 }
 
 function getLocalSynced(
 	ctor: RpcDecoratedCtor<any>,
 ): Record<string, FieldType> | undefined {
+	ensureRpcDecoratorsApplied(ctor);
 	return (ctor as any)[RPC_SYNC_FIELDS_KEY] as
 		| Record<string, FieldType>
 		| undefined;
@@ -1732,6 +1981,7 @@ function flattenSchema(
 	>,
 	collectPresence?: Record<string, { settable: boolean }>,
 ): Record<string, MethodSchema> {
+	ensureRpcDecoratorsApplied(ctor);
 	const flat: Record<string, MethodSchema> = {};
 	const local = (ctor as any)[RPC_SCHEMA_KEY] as RpcSchema<any> | undefined;
 	if (local) {
@@ -1792,6 +2042,7 @@ function ensureChildInstances<T extends object>(
 	instance: T,
 	ctor: RpcDecoratedCtor<T>,
 ) {
+	ensureRpcDecoratorsApplied(ctor);
 	const children = (ctor as any)[RPC_CHILDREN_KEY] as
 		| Record<string, ChildMeta>
 		| undefined;
@@ -1815,6 +2066,7 @@ const LAZY_CHILD_PRESENCE: unique symbol = Symbol.for(
 	"borsh-ts.rpc.children.lazy.presence",
 );
 function attachLazyChildHooks(instance: any, ctor: RpcDecoratedCtor<any>) {
+	ensureRpcDecoratorsApplied(ctor);
 	const children = (ctor as any)[RPC_CHILDREN_KEY] as
 		| Record<string, ChildMeta>
 		| undefined;
@@ -2126,6 +2378,7 @@ export const rpcService = service;
 export function getRpcSchema<T extends object>(
 	ctor: RpcDecoratedCtor<T>,
 ): RpcSchema<T> | undefined {
+	ensureRpcDecoratorsApplied(ctor);
 	return (ctor as any)[RPC_SCHEMA_KEY] as RpcSchema<T> | undefined;
 }
 
@@ -2375,6 +2628,7 @@ export function bindService<C extends new (...args: any[]) => any>(
 // Runtime handler injection for synced fields on the server side
 const SYNC_WATCHERS: unique symbol = Symbol.for("borsh-ts.rpc.synced.watchers");
 function attachSyncedHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
+	ensureRpcDecoratorsApplied(ctor);
 	const synced = getLocalSynced(ctor);
 	if (synced) {
 		if (!instance[SYNC_WATCHERS])
@@ -2445,6 +2699,7 @@ const SYNC_EVENT_WATCHERS: unique symbol = Symbol.for(
 	"borsh-ts.rpc.events.watchers",
 );
 function attachEventHandlers(instance: any, ctor: RpcDecoratedCtor<any>) {
+	ensureRpcDecoratorsApplied(ctor);
 	const evs = (ctor as any)[RPC_EVENTS_KEY] as
 		| Record<string, FieldType>
 		| undefined;

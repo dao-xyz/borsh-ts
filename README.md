@@ -72,9 +72,9 @@ Full docs: [./packages/rpc/README.md](./packages/rpc/README.md)
 ## Development
 
 ```bash
-yarn install
-yarn build
-yarn workspaces:test
+pnpm install
+pnpm build
+pnpm test
 ```
 
 ## License

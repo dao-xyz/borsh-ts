@@ -19,7 +19,6 @@
 		"jsx": "react",
 		"resolveJsonModule": true,
 		"isolatedModules": true,
-		"experimentalDecorators": true,
 		"types": ["node"]
 	}
 }

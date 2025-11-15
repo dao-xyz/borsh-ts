@@ -24,7 +24,7 @@
 	},
 	"scripts": {
 		"clean": "rimraf lib",
-		"build": "yarn clean && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+		"build": "pnpm run clean && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
 		"postbuild": "echo '{\"type\":\"commonjs\"}' | npx json > lib/cjs/package.json && echo '{\"type\":\"module\"}' | npx json > lib/esm/package.json && rimraf lib/esm/__tests__ && rimraf lib/cjs/__tests__",
 		"test": "vitest run -c vitest.config.ts"
 	},

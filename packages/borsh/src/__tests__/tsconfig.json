@@ -2,7 +2,6 @@
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
 		"types": ["vitest/globals"],
-		"experimentalDecorators": true,
 		"module": "nodenext",
 		"moduleResolution": "nodenext",
 		"target": "ES2020"

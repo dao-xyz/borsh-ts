@@ -1,5 +1,6 @@
 {
 	"name": "@dao-xyz/borsh-monorepo",
+	"packageManager": "pnpm@10.22.0",
 	"private": true,
 	"workspaces": [
 		"packages/*"
@@ -8,18 +9,19 @@
 		"build": "lerna run build --stream",
 		"workspaces:test": "lerna run test --stream",
 		"workspaces:clean": "lerna run clean --stream",
-		"test": "yarn workspaces:test",
+		"test": "pnpm run workspaces:test",
 		"pretty": "prettier --write .",
 		"pretty:check": "prettier --check ."
 	},
 	"devDependencies": {
-		"lerna": "^8.2.4",
-		"typescript": "^5.9.2",
-		"vitest": "^3.2.4",
-		"rimraf": "^3.0.2",
+		"@trivago/prettier-plugin-sort-imports": "^5.2.2",
 		"@types/node": "^20",
 		"benchmark": "2.1.4",
+		"lerna": "^8.2.4",
 		"prettier": "^3.6.2",
-		"@trivago/prettier-plugin-sort-imports": "^5.2.2"
+		"rimraf": "^3.0.2",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4"
 	}
 }

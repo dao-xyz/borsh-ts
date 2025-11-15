@@ -120,6 +120,7 @@ export interface Field {
 
 export class StructKind {
 	variant?: number | number[] | string;
+	variantMarker?: boolean;
 	serializer?: (
 		any: any,
 		writer: BinaryWriter,
@@ -128,13 +129,17 @@ export class StructKind {
 	fields: Field[];
 	constructor(properties?: {
 		variant?: number | number[] | string;
+		variantMarker?: boolean;
 		fields: Field[];
 	}) {
 		if (properties) {
 			this.fields = properties.fields;
 			this.variant = properties.variant;
+			this.variantMarker =
+				properties.variantMarker ?? properties.variant !== undefined;
 		} else {
 			this.fields = [];
+			this.variantMarker = false;
 		}
 	}
 	getDependencies(): (Constructor<any> | AbstractType<any>)[] {
