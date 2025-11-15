@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-v5.2.4...@dao-xyz/borsh-v6.0.0) (2025-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* Use Typescript use Stage 3 Decorators
+
+### Features
+
+* Use Typescript use Stage 3 Decorators ([9a40e37](https://github.com/dao-xyz/borsh-ts/commit/9a40e372f15ba060b23471c3dea25788512e8ca6))
+
 ## [5.2.4](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-v5.2.3...@dao-xyz/borsh-v5.2.4) (2025-09-02)
 
 

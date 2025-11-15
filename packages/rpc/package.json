@@ -1,6 +1,6 @@
 {
 	"name": "@dao-xyz/borsh-rpc",
-	"version": "1.4.0",
+	"version": "2.0.0",
 	"description": "Borsh-based RPC over typed messages and decorators",
 	"license": "Apache-2.0",
 	"type": "module",
@@ -29,7 +29,7 @@
 		"test": "vitest run -c vitest.config.ts"
 	},
 	"dependencies": {
-		"@dao-xyz/borsh": "workspace:^5.2.4"
+		"@dao-xyz/borsh": "6.0.0"
 	},
 	"devDependencies": {
 		"@libp2p/interface": "^2.11.0"
