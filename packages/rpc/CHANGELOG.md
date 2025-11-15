@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.4.0...@dao-xyz/borsh-rpc-v2.0.0) (2025-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* Use Typescript use Stage 3 Decorators
+
+### Features
+
+* Use Typescript use Stage 3 Decorators ([9a40e37](https://github.com/dao-xyz/borsh-ts/commit/9a40e372f15ba060b23471c3dea25788512e8ca6))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @dao-xyz/borsh bumped to 6.0.0
+
 ## [1.4.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v1.3.1...@dao-xyz/borsh-rpc-v1.4.0) (2025-09-08)
 
 
