@@ -53,7 +53,11 @@ const VARIANT_ALREADY_READ = Symbol.for("@dao-xyz/borsh:variant-read");
 const STAGE3_GUARD_FLAG = "__borsh_ts_rpc_stage_3_initialized";
 if (!(globalThis as any)[STAGE3_GUARD_FLAG]) {
 	const originalDefineProperty = Object.defineProperty;
-	Object.defineProperty = function (target: any, propertyKey: PropertyKey, attributes: any) {
+	Object.defineProperty = function (
+		target: any,
+		propertyKey: PropertyKey,
+		attributes: any,
+	) {
 		if (
 			propertyKey === symbolMetadataSymbol &&
 			attributes &&
@@ -86,9 +90,7 @@ type Stage3DecoratorContext = {
 	metadata?: Record<PropertyKey, any>;
 };
 
-type Stage3ClassDecoratorFn = <
-	T extends abstract new (...args: any) => any,
->(
+type Stage3ClassDecoratorFn = <T extends abstract new (...args: any) => any>(
 	value: T,
 	context: ClassDecoratorContext<T>,
 ) => T | void;
@@ -105,12 +107,20 @@ type CompatibleClassDecorator = ClassDecorator & Stage3ClassDecoratorFn;
 type CompatibleFieldDecorator = PropertyDecorator & Stage3FieldDecoratorFn;
 type CompatibleMethodDecorator = MethodDecorator & Stage3MethodDecoratorFn;
 
-const BORSH_STAGE3_METADATA_KEY = Symbol.for("@dao-xyz/borsh:stage3-decorators");
+const BORSH_STAGE3_METADATA_KEY = Symbol.for(
+	"@dao-xyz/borsh:stage3-decorators",
+);
 type DecoratorAction = (ctor: Function) => void;
 type DecoratorActionStore = { applied?: boolean; actions: DecoratorAction[] };
 
-function isStage3DecoratorContext(value: unknown): value is Stage3DecoratorContext {
-	return !!value && typeof value === "object" && typeof (value as any).kind === "string";
+function isStage3DecoratorContext(
+	value: unknown,
+): value is Stage3DecoratorContext {
+	return (
+		!!value &&
+		typeof value === "object" &&
+		typeof (value as any).kind === "string"
+	);
 }
 
 function getStage3MetadataStore(
@@ -147,7 +157,6 @@ function scheduleStage3Decorator(
 	const store = getStage3MetadataStore(context);
 	store.actions.push(action);
 }
-
 
 metadataFinalizers.push((ctor, metadata) => {
 	const store = metadata[BORSH_STAGE3_METADATA_KEY] as
@@ -1008,7 +1017,6 @@ const getVariantDependencies = (
 	return ret.size ? ret : undefined;
 };
 
-
 const getDependenciesRecursively = (
 	ctor: Function,
 	offset: number,
@@ -1085,13 +1093,18 @@ export const getSchemasBottomUp = (ctor: Function): StructKind[] => {
  * @param kind 'struct' or 'variant. 'variant' equivalnt to Rust Enum
  * @returns Schema decorator function for classes
  */
-export function variant(index?: number | number[] | string): Stage3ClassDecoratorFn;
+export function variant(
+	index?: number | number[] | string,
+): Stage3ClassDecoratorFn;
 export function variant(index?: number | number[] | string): ClassDecorator;
 export function variant(
 	index?: number | number[] | string,
 ): CompatibleClassDecorator {
 	const decorator = (targetOrCtor: Function, maybeContext?: any): any => {
-		if (isStage3DecoratorContext(maybeContext) && maybeContext.kind === "class") {
+		if (
+			isStage3DecoratorContext(maybeContext) &&
+			maybeContext.kind === "class"
+		) {
 			applyVariantDecorator(targetOrCtor, index);
 			return;
 		}
@@ -1141,9 +1154,7 @@ function applyVariantDecorator(
 									index.every(
 										(value, index) =>
 											value === (otherVariant as number[])[index],
-									)
-								)
-							)
+									)))
 						) {
 							throw new BorshError(
 								`Variant of ${ctor.name}: ${JSON.stringify(index)} is the same as for ${dependency.name} which is not allowed (non-determinism)`,
@@ -1164,7 +1175,6 @@ function applyVariantDecorator(
 		}
 	}
 }
-
 
 const getVariantIndex = (
 	schema?: StructKind,
@@ -1239,7 +1249,11 @@ export function field(
 			);
 			return;
 		}
-		return applyFieldDecorator(targetOrValue, nameOrContext as PropertyKey, properties);
+		return applyFieldDecorator(
+			targetOrValue,
+			nameOrContext as PropertyKey,
+			properties,
+		);
 	};
 	return decorator as CompatibleFieldDecorator;
 }
@@ -1263,7 +1277,10 @@ export function serializer(): CompatibleMethodDecorator {
 			);
 			return targetOrValue;
 		}
-		applySerializerDecorator(targetOrValue, propertyKeyOrContext as PropertyKey);
+		applySerializerDecorator(
+			targetOrValue,
+			propertyKeyOrContext as PropertyKey,
+		);
 	};
 	return decorator as CompatibleMethodDecorator;
 }
@@ -1303,7 +1320,11 @@ const validateIterator = (
 			if (!schema) {
 				return;
 			}
-			if (getOffset(v) > 0 && schema.fields.length > 0 && !schema.variantMarker) {
+			if (
+				getOffset(v) > 0 &&
+				schema.fields.length > 0 &&
+				!schema.variantMarker
+			) {
 				throw new BorshError(
 					`Class ${v.name} extends another decorated class and declares @field data but is missing a @variant() decorator.`,
 				);

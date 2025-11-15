@@ -30,7 +30,10 @@ if (!(Symbol as any).metadata) {
 	});
 }
 
-type Stage3MetadataFinalizer = (ctor: Function, metadata: Record<PropertyKey, any>) => void;
+type Stage3MetadataFinalizer = (
+	ctor: Function,
+	metadata: Record<PropertyKey, any>,
+) => void;
 const STAGE3_FINALIZERS_SYMBOL = Symbol.for("@dao-xyz/stage3-finalizers");
 const stage3Finalizers: Stage3MetadataFinalizer[] = ((globalThis as any)[
 	STAGE3_FINALIZERS_SYMBOL
@@ -38,7 +41,11 @@ const stage3Finalizers: Stage3MetadataFinalizer[] = ((globalThis as any)[
 const STAGE3_GUARD_FLAG = "__borsh_ts_rpc_stage_3_initialized";
 if (!(globalThis as any)[STAGE3_GUARD_FLAG]) {
 	const originalDefineProperty = Object.defineProperty;
-	Object.defineProperty = function (target: any, propertyKey: PropertyKey, attributes: any) {
+	Object.defineProperty = function (
+		target: any,
+		propertyKey: PropertyKey,
+		attributes: any,
+	) {
 		if (
 			propertyKey === rpcSymbolMetadataSymbol &&
 			attributes &&
@@ -62,9 +69,7 @@ type RpcStage3DecoratorContext = {
 	metadata?: Record<PropertyKey, any>;
 };
 
-type Stage3ClassDecoratorFn = <
-	T extends abstract new (...args: any) => any,
->(
+type Stage3ClassDecoratorFn = <T extends abstract new (...args: any) => any>(
 	value: T,
 	context: ClassDecoratorContext<T>,
 ) => T | void;
@@ -85,11 +90,19 @@ const RPC_STAGE3_METADATA_KEY = Symbol.for("borsh-ts.rpc.stage3-decorators");
 type RpcDecoratorAction = (ctor: Function) => void;
 type RpcDecoratorStore = { applied?: boolean; actions: RpcDecoratorAction[] };
 
-function isRpcStage3Context(value: unknown): value is RpcStage3DecoratorContext {
-	return !!value && typeof value === "object" && typeof (value as any).kind === "string";
+function isRpcStage3Context(
+	value: unknown,
+): value is RpcStage3DecoratorContext {
+	return (
+		!!value &&
+		typeof value === "object" &&
+		typeof (value as any).kind === "string"
+	);
 }
 
-function getRpcStage3Store(context: RpcStage3DecoratorContext): RpcDecoratorStore {
+function getRpcStage3Store(
+	context: RpcStage3DecoratorContext,
+): RpcDecoratorStore {
 	const metadata = context.metadata;
 	if (!metadata) {
 		throw new Error(
@@ -766,12 +779,8 @@ export const RPC_SYNC_FIELDS_KEY: unique symbol = Symbol.for(
 type SyncedFieldEntry = { type: FieldType };
 type SyncedFieldsMap = Record<string, SyncedFieldEntry>; // key is fully-qualified path when flattened
 
-export function syncedField(
-	type: FieldType | object,
-): Stage3FieldDecoratorFn;
-export function syncedField(
-	type: FieldType | object,
-): PropertyDecorator;
+export function syncedField(type: FieldType | object): Stage3FieldDecoratorFn;
+export function syncedField(type: FieldType | object): PropertyDecorator;
 export function syncedField(
 	type: FieldType | object,
 ): CompatibleFieldDecorator {
@@ -1904,7 +1913,12 @@ export function subservice(
 			return;
 		}
 		const ctor = targetOrValue.constructor as RpcDecoratedCtor<any>;
-		registerSubservice(ctor, propertyKeyOrContext as PropertyKey, childCtor, options);
+		registerSubservice(
+			ctor,
+			propertyKeyOrContext as PropertyKey,
+			childCtor,
+			options,
+		);
 	};
 	return decorator as CompatibleFieldDecorator;
 }
@@ -1923,12 +1937,8 @@ function registerSubservice(
 
 // Event decorator: marks a property as an event emitter host.
 // payloadType is the borsh FieldType for CustomEvent.detail
-export function events(
-	payloadType: FieldType | object,
-): Stage3FieldDecoratorFn;
-export function events(
-	payloadType: FieldType | object,
-): PropertyDecorator;
+export function events(payloadType: FieldType | object): Stage3FieldDecoratorFn;
+export function events(payloadType: FieldType | object): PropertyDecorator;
 export function events(
 	payloadType: FieldType | object,
 ): CompatibleFieldDecorator {
@@ -1958,7 +1968,10 @@ function registerEventField(
 	payloadType: FieldType | object,
 ) {
 	const key = String(propertyKey);
-	const evs = ((ctor as any)[RPC_EVENTS_KEY] ??= {} as Record<string, FieldType>);
+	const evs = ((ctor as any)[RPC_EVENTS_KEY] ??= {} as Record<
+		string,
+		FieldType
+	>);
 	evs[key] = normalizeFieldTypeRef(payloadType) as FieldType;
 }
 
