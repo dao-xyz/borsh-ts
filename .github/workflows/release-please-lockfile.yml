@@ -1,0 +1,41 @@
+name: Release Please Lockfile
+
+on:
+  push:
+    branches:
+      - release-please--branches--*
+
+permissions:
+  contents: write
+
+jobs:
+  update-pnpm-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+          run_install: false
+
+      - name: Update pnpm-lock.yaml
+        run: pnpm install --no-frozen-lockfile --lockfile-only
+
+      - name: Commit lockfile if changed
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "pnpm-lock.yaml unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git commit -m "chore: update pnpm-lock.yaml"
+          git push
