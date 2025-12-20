@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.4](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.3...@dao-xyz/borsh-rpc-v2.0.4) (2025-12-20)
+
+
+### Bug Fixes
+
+* unset pnpm version ([9f66d1a](https://github.com/dao-xyz/borsh-ts/commit/9f66d1ac580343059ad439c11955a49e4bba1578))
+
 ## [2.0.3](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.2...@dao-xyz/borsh-rpc-v2.0.3) (2025-12-20)
 
 
