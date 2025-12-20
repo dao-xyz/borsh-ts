@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.2...@dao-xyz/borsh-rpc-v2.0.3) (2025-12-20)
+
+
+### Bug Fixes
+
+* use workspace version ([12934c3](https://github.com/dao-xyz/borsh-ts/commit/12934c3847842aa95077c5061f70b7e4f98b51e4))
+
 ## [2.0.2](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.1...@dao-xyz/borsh-rpc-v2.0.2) (2025-12-20)
 
 
