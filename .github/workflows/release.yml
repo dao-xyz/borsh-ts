@@ -6,11 +6,15 @@ on:
       - packages/**
       - .release-please-manifest.json
       - release-please-config.json
+  workflow_dispatch: {}
 permissions:
   contents: write
   pull-requests: write
 
 name: Run Release Please
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   release-please:
     runs-on: ubuntu-latest
