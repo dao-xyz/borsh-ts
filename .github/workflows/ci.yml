@@ -13,6 +13,7 @@ jobs:
           version: 10.22.0
           run_install: false
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test
   prettier:
     runs-on: ubuntu-latest

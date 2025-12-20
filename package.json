@@ -18,10 +18,12 @@
 		"@types/node": "^20",
 		"benchmark": "2.1.4",
 		"lerna": "^8.2.4",
+		"playwright": "^1.57.0",
 		"prettier": "^3.6.2",
 		"rimraf": "^3.0.2",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.9.2",
+		"vite": "^7.3.0",
 		"vitest": "^3.2.4"
 	}
 }

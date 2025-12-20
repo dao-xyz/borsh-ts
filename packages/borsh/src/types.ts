@@ -13,7 +13,11 @@ export const extendingClasses = (clazz: any): any[] => {
 		let baseClass = clazz;
 		while (baseClass) {
 			const newBaseClass = Object.getPrototypeOf(baseClass);
-			if (newBaseClass && newBaseClass !== Object && newBaseClass.name) {
+			if (
+				newBaseClass &&
+				newBaseClass !== Object &&
+				newBaseClass !== Function.prototype
+			) {
 				ret.push(newBaseClass);
 				baseClass = newBaseClass;
 			} else {
