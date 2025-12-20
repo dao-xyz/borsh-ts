@@ -10,7 +10,7 @@ jobs:
           node-version: "20"
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.22.0
+          version: 10.26.1
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
@@ -24,7 +24,7 @@ jobs:
           node-version: "20"
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.22.0
+          version: 10.26.1
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm pretty:check

@@ -50,7 +50,7 @@ jobs:
         uses: pnpm/action-setup@v4
         if: ${{ steps.release.outputs.releases_created == 'true' }}
         with:
-          version: 10.22.0
+          version: 10.26.1
           run_install: false
 
       - name: Install deps
