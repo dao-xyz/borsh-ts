@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.1](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-v6.0.0...@dao-xyz/borsh-v6.0.1) (2025-12-20)
+
+
+### Bug Fixes
+
+* make sure borsh decorators work through vite production builds ([a08ecef](https://github.com/dao-xyz/borsh-ts/commit/a08ecefc13d88958f171f99334ddaef7702550e3))
+
 ## [6.0.0](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-v5.2.4...@dao-xyz/borsh-v6.0.0) (2025-11-15)
 
 
