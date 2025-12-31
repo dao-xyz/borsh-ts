@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	LoopbackPair,
+	type RpcProxy,
 	bindService,
 	createProxyFromService,
 	events,
@@ -73,7 +74,7 @@ class Leaf {
 	}
 
 	@method({ returns: { stream: "u32" } })
-	async boomStream(): Promise<AsyncIterable<number>> {
+	boomStream(): AsyncIterable<number> {
 		throw new Error("boom");
 	}
 }
@@ -104,11 +105,11 @@ describe("subservice reference return and helper ops", () => {
 		const unbind = bindService(Parent, b, server);
 		try {
 			const client = createProxyFromService(Parent, a);
-			const child = await withTimeout(
+			const child = (await withTimeout(
 				client.createChild(),
 				250,
 				"Timed out awaiting subservice proxy (thenable regression)",
-			);
+			)) as unknown as RpcProxy<Child>;
 
 			// Synced field helper should work on nested subservice paths: "$get/$set:$ref:<id>.leaf.count"
 			await expect(child.leaf.count.get()).resolves.toBe(0);
@@ -163,7 +164,10 @@ describe("subservice reference return and helper ops", () => {
 		const unbind = bindService(Parent, b, server);
 		try {
 			const client = createProxyFromService(Parent, a);
-			const child = await withTimeout(client.createChild(), 250);
+			const child = (await withTimeout(
+				client.createChild(),
+				250,
+			)) as unknown as RpcProxy<Child>;
 
 			const consume = (async () => {
 				for await (const _ of child.leaf.boomStream()) {
