@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.5](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.4...@dao-xyz/borsh-rpc-v2.0.5) (2025-12-31)
+
+
+### Bug Fixes
+
+* support helper ops on $ref subservices ([1cfb02f](https://github.com/dao-xyz/borsh-ts/commit/1cfb02faae131d2b6396bb3787aeddaf8f9de886))
+
 ## [2.0.4](https://github.com/dao-xyz/borsh-ts/compare/@dao-xyz/borsh-rpc-v2.0.3...@dao-xyz/borsh-rpc-v2.0.4) (2025-12-20)
 
 
