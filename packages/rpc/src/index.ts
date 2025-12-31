@@ -1039,8 +1039,16 @@ export function createRpcProxy<T extends object>(
 		} else if (msg instanceof Err) {
 			const { id } = msg.header;
 			const p = pending.get(id);
-			p?.reject(new Error(msg.message));
-			pending.delete(id);
+			if (p) {
+				p.reject(new Error(msg.message));
+				pending.delete(id);
+				return;
+			}
+			const s = streams.get(id);
+			if (s) {
+				s.q.fail(new Error(msg.message));
+				streams.delete(id);
+			}
 		} else if (msg instanceof Stream) {
 			const { id, method } = msg.header;
 			const s = streams.get(id);
@@ -1194,6 +1202,8 @@ export function createRpcProxy<T extends object>(
 		const handler: ProxyHandler<any> = {
 			get(_target, prop) {
 				if (typeof prop !== "string") return undefined;
+				// Prevent proxies from becoming thenables and breaking Promise resolution.
+				if (prop === "then") return undefined;
 				const full = prefix + prop;
 				const spec = (schema as Record<string, MethodSchema | undefined>)[full];
 				const hasChildren = Object.keys(schema).some((k) =>
@@ -1560,19 +1570,71 @@ export function bindRpcReceiver<T extends object>(
 		// Resolve nested target and method name
 		let target: any = instance;
 		let funcName = method;
-		// Handle synced field helpers specially: "$op:path.to.prop"
+		// Handle special helper methods: "$op:path.to.prop"
 		if (
 			method.startsWith("$get:") ||
 			method.startsWith("$set:") ||
-			method.startsWith("$watch:")
+			method.startsWith("$watch:") ||
+			method.startsWith("$events:") ||
+			method.startsWith("$present:") ||
+			method.startsWith("$presentWatch:")
 		) {
 			const idx = method.indexOf(":");
-			const op = method.slice(0, idx); // $get / $set / $watch
-			const path = method.slice(idx + 1); // e.g. a.b.c
-			const parts = path.split(".");
-			const prop = parts.pop() as string;
-			for (const p of parts) target = target?.[p];
-			funcName = `${op}:${prop}`;
+			const op = method.slice(0, idx); // e.g. $get / $events / $presentWatch
+			const path = method.slice(idx + 1); // e.g. a.b.c OR $ref:7.a.b.c
+			if (path.startsWith("$ref:")) {
+				// Dynamic subservice reference helpers: "$op:$ref:<id>.<tail>"
+				const dotIdx = path.indexOf(".");
+				if (dotIdx === -1) {
+					const out = serialize(
+						new Err(
+							new ResponseHeader(id, method),
+							`Invalid subservice ref call: ${method}`,
+						),
+					);
+					transport.send(out);
+					return;
+				}
+				const idStr = path.slice(5, dotIdx);
+				const tail = path.slice(dotIdx + 1);
+				const idNum = Number(idStr);
+				const entry = (codecCtx.subRefById || new Map()).get(idNum);
+				if (!entry) {
+					const out = serialize(
+						new Err(
+							new ResponseHeader(id, method),
+							`Unknown subservice ref: ${idNum}`,
+						),
+					);
+					transport.send(out);
+					return;
+				}
+				spec = entry.flat[`${op}:${tail}`] as MethodSchema | undefined;
+				if (!spec) {
+					const out = serialize(
+						new Err(
+							new ResponseHeader(id, method),
+							`Unknown method: ${method}`,
+						),
+					);
+					transport.send(out);
+					return;
+				}
+				target = entry.instance;
+				if (tail.includes(".")) {
+					const parts = tail.split(".");
+					const prop = parts.pop() as string;
+					for (const p of parts) target = target?.[p];
+					funcName = `${op}:${prop}`;
+				} else {
+					funcName = `${op}:${tail}`;
+				}
+			} else {
+				const parts = path.split(".");
+				const prop = parts.pop() as string;
+				for (const p of parts) target = target?.[p];
+				funcName = `${op}:${prop}`;
+			}
 		} else if (method.startsWith("$ref:")) {
 			// Route to dynamic subservice reference
 			const idx = method.indexOf(".");
